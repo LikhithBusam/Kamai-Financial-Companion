@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Target, Plus, Home, ChevronDown, ChevronUp, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { Loader2, Target, Plus, Home, ChevronDown, ChevronUp, CheckCircle, Clock, AlertCircle, PiggyBank, IndianRupee } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import db from "@/services/database";
 import { toast } from "sonner";
@@ -25,6 +25,9 @@ const Goals = () => {
   const [hasMinimumData, setHasMinimumData] = useState(false);
   const [expandedGoal, setExpandedGoal] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isContributeOpen, setIsContributeOpen] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState<any>(null);
+  const [contributionAmount, setContributionAmount] = useState("");
   const [createFormData, setCreateFormData] = useState({
     goal_name: "",
     goal_type: "",
@@ -98,6 +101,51 @@ const Goals = () => {
     } catch (error) {
       console.error("Failed to create goal:", error);
       toast.error("Failed to create goal");
+    }
+  };
+
+  const openContributeDialog = (goal: any) => {
+    setSelectedGoal(goal);
+    setContributionAmount("");
+    setIsContributeOpen(true);
+  };
+
+  const handleContribute = async () => {
+    try {
+      if (!selectedGoal || !contributionAmount) {
+        toast.error("Please enter an amount");
+        return;
+      }
+
+      const amount = parseFloat(contributionAmount);
+      if (amount <= 0) {
+        toast.error("Please enter a valid amount");
+        return;
+      }
+
+      const newCurrentAmount = (selectedGoal.current_amount || 0) + amount;
+      const newProgress = Math.min(100, (newCurrentAmount / selectedGoal.target_amount) * 100);
+      const newStatus = newProgress >= 100 ? "completed" : "in_progress";
+
+      await db.financialGoals.updateProgress(selectedGoal.id, {
+        current_amount: newCurrentAmount,
+        progress_percentage: newProgress,
+        status: newStatus,
+      });
+
+      toast.success(`Added ₹${amount.toLocaleString("en-IN")} to ${selectedGoal.goal_name}!`);
+
+      if (newProgress >= 100) {
+        toast.success("Congratulations! You've completed this goal!", { duration: 5000 });
+      }
+
+      setIsContributeOpen(false);
+      setSelectedGoal(null);
+      setContributionAmount("");
+      loadGoals();
+    } catch (error) {
+      console.error("Failed to add contribution:", error);
+      toast.error("Failed to add contribution");
     }
   };
 
@@ -260,6 +308,15 @@ const Goals = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => { e.stopPropagation(); openContributeDialog(goal); }}
+                        className="hidden md:flex"
+                      >
+                        <PiggyBank className="w-4 h-4 mr-2" />
+                        Add Money
+                      </Button>
                       <div className="text-right">
                         <div className="text-2xl font-bold text-primary">
                           {Math.round(goal.progress_percentage || 0)}%
@@ -390,7 +447,10 @@ const Goals = () => {
                                 <div className="text-sm text-muted-foreground">Monthly Target</div>
                                 <div className="text-xl font-bold">₹{goal.monthly_target.toLocaleString("en-IN")}</div>
                               </div>
-                              <Button size="sm">Add Savings</Button>
+                              <Button size="sm" onClick={(e) => { e.stopPropagation(); openContributeDialog(goal); }}>
+                                <PiggyBank className="w-4 h-4 mr-2" />
+                                Add Savings
+                              </Button>
                             </div>
                           </Card>
                         )}
@@ -492,6 +552,108 @@ const Goals = () => {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Contribute to Goal Dialog */}
+      <Dialog open={isContributeOpen} onOpenChange={setIsContributeOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PiggyBank className="w-5 h-5 text-primary" />
+              Add Money to Goal
+            </DialogTitle>
+          </DialogHeader>
+          {selectedGoal && (
+            <div className="space-y-6 py-4">
+              {/* Goal Info */}
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="text-3xl">{getGoalTypeIcon(selectedGoal.goal_type)}</div>
+                  <div>
+                    <h3 className="font-semibold">{selectedGoal.goal_name}</h3>
+                    <p className="text-sm text-muted-foreground">{selectedGoal.goal_type?.replace("_", " ")}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Current</p>
+                    <p className="font-semibold text-green-600">₹{(selectedGoal.current_amount || 0).toLocaleString("en-IN")}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Target</p>
+                    <p className="font-semibold">₹{(selectedGoal.target_amount || 0).toLocaleString("en-IN")}</p>
+                  </div>
+                </div>
+                <Progress value={selectedGoal.progress_percentage || 0} className="mt-3" />
+                <p className="text-xs text-muted-foreground mt-1 text-right">
+                  {Math.round(selectedGoal.progress_percentage || 0)}% complete
+                </p>
+              </div>
+
+              {/* Amount Input */}
+              <div className="space-y-2">
+                <Label>Amount to Add (₹)</Label>
+                <div className="relative">
+                  <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    type="number"
+                    placeholder="Enter amount"
+                    value={contributionAmount}
+                    onChange={(e) => setContributionAmount(e.target.value)}
+                    className="pl-10 text-lg"
+                    autoFocus
+                  />
+                </div>
+                {contributionAmount && parseFloat(contributionAmount) > 0 && (
+                  <p className="text-sm text-green-600">
+                    New balance: ₹{((selectedGoal.current_amount || 0) + parseFloat(contributionAmount)).toLocaleString("en-IN")}
+                    {" "}({Math.min(100, Math.round(((selectedGoal.current_amount || 0) + parseFloat(contributionAmount)) / selectedGoal.target_amount * 100))}%)
+                  </p>
+                )}
+              </div>
+
+              {/* Quick Amount Buttons */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Quick Add</Label>
+                <div className="flex gap-2 flex-wrap">
+                  {[500, 1000, 2000, 5000, 10000].map((amount) => (
+                    <Button
+                      key={amount}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setContributionAmount(String(amount))}
+                    >
+                      ₹{amount.toLocaleString("en-IN")}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsContributeOpen(false);
+                    setSelectedGoal(null);
+                    setContributionAmount("");
+                  }}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleContribute}
+                  className="flex-1"
+                  disabled={!contributionAmount || parseFloat(contributionAmount) <= 0}
+                >
+                  <PiggyBank className="w-4 h-4 mr-2" />
+                  Add ₹{contributionAmount ? parseFloat(contributionAmount).toLocaleString("en-IN") : "0"}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CheckCircle, Clock, Play, Pause, RotateCcw, Home } from "lucide-react";
+import { Loader2, CheckCircle, Clock, Play, Pause, RotateCcw, Home, Receipt, Plus } from "lucide-react";
 import { motion } from "framer-motion";
 import db from "@/services/database";
 import { toast } from "sonner";
@@ -21,10 +21,12 @@ import MinimumDataRequired from "@/components/MinimumDataRequired";
 const Actions = () => {
   const navigate = useNavigate();
   const [actions, setActions] = useState<any[]>([]);
+  const [bills, setBills] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasMinimumData, setHasMinimumData] = useState(false);
-  const [filter, setFilter] = useState<"today" | "upcoming" | "ongoing" | "completed">("today");
+  const [filter, setFilter] = useState<"today" | "upcoming" | "ongoing" | "completed" | "bills">("today");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isBillCreateOpen, setIsBillCreateOpen] = useState(false);
   const [createFormData, setCreateFormData] = useState({
     plan_name: "",
     description: "",
@@ -33,6 +35,14 @@ const Actions = () => {
     target_date: "",
     frequency: "once",
   });
+  const [billFormData, setBillFormData] = useState({
+    bill_name: "",
+    bill_type: "",
+    amount: "",
+    due_date: "",
+    frequency: "monthly",
+    auto_pay: false,
+  });
 
   useEffect(() => {
     checkDataRequirements();
@@ -40,7 +50,11 @@ const Actions = () => {
 
   useEffect(() => {
     if (hasMinimumData) {
-      loadActions();
+      if (filter === "bills") {
+        loadBills();
+      } else {
+        loadActions();
+      }
     }
   }, [filter, hasMinimumData]);
 
@@ -58,13 +72,70 @@ const Actions = () => {
   const loadActions = async () => {
     try {
       setIsLoading(true);
-      const data = await db.actions.getAll({ date_range: filter });
+      const data = await db.actions.getAll({ date_range: filter as "today" | "upcoming" | "ongoing" | "completed" });
       setActions(data);
     } catch (error) {
       console.error("Failed to load actions:", error);
       toast.error("Failed to load actions");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadBills = async () => {
+    try {
+      setIsLoading(true);
+      const data = await db.bills.getAll();
+      setBills(data);
+    } catch (error) {
+      console.error("Failed to load bills:", error);
+      toast.error("Failed to load bills");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMarkBillPaid = async (billId: string) => {
+    try {
+      await db.bills.markPaid(billId);
+      toast.success("Bill marked as paid!");
+      loadBills();
+    } catch (error) {
+      console.error("Failed to mark bill as paid:", error);
+      toast.error("Failed to update bill");
+    }
+  };
+
+  const handleCreateBill = async () => {
+    try {
+      if (!billFormData.bill_name || !billFormData.bill_type || !billFormData.amount || !billFormData.due_date) {
+        toast.error("Please fill in all required fields");
+        return;
+      }
+
+      await db.bills.create({
+        bill_name: billFormData.bill_name,
+        bill_type: billFormData.bill_type,
+        amount: parseFloat(billFormData.amount),
+        due_date: billFormData.due_date,
+        frequency: billFormData.frequency,
+        auto_pay_recommended: billFormData.auto_pay,
+      });
+
+      toast.success("Bill added successfully!");
+      setIsBillCreateOpen(false);
+      setBillFormData({
+        bill_name: "",
+        bill_type: "",
+        amount: "",
+        due_date: "",
+        frequency: "monthly",
+        auto_pay: false,
+      });
+      loadBills();
+    } catch (error) {
+      console.error("Failed to create bill:", error);
+      toast.error("Failed to add bill");
     }
   };
 
@@ -92,23 +163,6 @@ const Actions = () => {
       if (!createFormData.plan_name || !createFormData.type || !createFormData.target_amount) {
         toast.error("Please fill in all required fields");
         return;
-      }
-
-      // Determine next_execution date based on target_date and frequency
-      const today = new Date();
-      let nextExecution: Date;
-      
-      if (createFormData.target_date) {
-        const targetDate = new Date(createFormData.target_date);
-        // If target date is today or in the past, use today
-        if (targetDate <= today) {
-          nextExecution = today;
-        } else {
-          nextExecution = targetDate;
-        }
-      } else {
-        // If no target date, use today
-        nextExecution = today;
       }
 
       await db.actions.create({
@@ -174,7 +228,10 @@ const Actions = () => {
   }
 
   const todayActions = actions.filter((a) => {
-    if (!a.next_execution) return false;
+    // Include actions without next_execution (newly created pending)
+    if (!a.next_execution) {
+      return a.status === "pending" || a.status === "active";
+    }
     const nextDate = new Date(a.next_execution);
     const today = new Date();
     return nextDate.toDateString() === today.toDateString();
@@ -188,6 +245,10 @@ const Actions = () => {
   });
 
   const completedActions = actions.filter((a) => a.status === "completed");
+
+  const ongoingActions = actions.filter((a) =>
+    a.status === "active" && a.schedule && a.schedule !== "once"
+  );
 
   return (
     <div className="space-y-6">
@@ -240,6 +301,13 @@ const Actions = () => {
           onClick={() => setFilter("completed")}
         >
           Completed
+        </Button>
+        <Button
+          variant={filter === "bills" ? "default" : "outline"}
+          onClick={() => setFilter("bills")}
+        >
+          <Receipt className="w-4 h-4 mr-2" />
+          Bills
         </Button>
               </div>
 
@@ -305,6 +373,51 @@ const Actions = () => {
         );
       })()}
 
+      {/* Ongoing Actions */}
+      {filter === "ongoing" && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">Ongoing Recurring Actions</h2>
+          {ongoingActions.length === 0 ? (
+            <Card className="p-12 text-center">
+              <p className="text-muted-foreground">No ongoing recurring actions</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Create actions with daily, weekly, or monthly frequency to see them here
+              </p>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {ongoingActions.map((action) => (
+                <Card key={action.id} className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="font-semibold text-lg">{action.action_description || action.action_type}</h3>
+                        {getStatusBadge(action.status)}
+                        <Badge variant="outline">{action.schedule}</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Amount: ₹{Number(action.amount || 0).toLocaleString("en-IN")}
+                      </p>
+                      {action.next_execution && (
+                        <p className="text-sm text-muted-foreground">
+                          Next execution: {format(new Date(action.next_execution), "PPP")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handlePause(action.id)}>
+                      <Pause className="w-4 h-4 mr-2" />
+                      Pause
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Completed Actions */}
       {filter === "completed" && (
         <div className="space-y-4">
@@ -336,6 +449,78 @@ const Actions = () => {
                       </div>
                     )}
                   </div>
+      )}
+
+      {/* Bills Section */}
+      {filter === "bills" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Bills & Payments</h2>
+            <Button onClick={() => setIsBillCreateOpen(true)} size="sm">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Bill
+            </Button>
+          </div>
+          {bills.length === 0 ? (
+            <Card className="p-12 text-center">
+              <Receipt className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+              <p className="text-muted-foreground">No bills added yet</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Add your recurring bills to track due dates and payments
+              </p>
+              <Button className="mt-4" onClick={() => setIsBillCreateOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Your First Bill
+              </Button>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {bills.map((bill) => {
+                const dueDate = new Date(bill.due_date);
+                const today = new Date();
+                const isOverdue = dueDate < today && bill.status !== "paid";
+                const isDueSoon = !isOverdue && dueDate <= new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+                return (
+                  <Card key={bill.id} className={`p-6 ${isOverdue ? "border-red-300 bg-red-50 dark:bg-red-950/20" : isDueSoon ? "border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20" : ""}`}>
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <Receipt className="w-5 h-5 text-muted-foreground" />
+                          <h3 className="font-semibold text-lg">{bill.bill_name}</h3>
+                          <Badge variant="outline">{bill.bill_type}</Badge>
+                          {bill.status === "paid" ? (
+                            <Badge className="bg-green-100 text-green-800">Paid</Badge>
+                          ) : isOverdue ? (
+                            <Badge className="bg-red-100 text-red-800">Overdue</Badge>
+                          ) : isDueSoon ? (
+                            <Badge className="bg-yellow-100 text-yellow-800">Due Soon</Badge>
+                          ) : (
+                            <Badge variant="outline">Pending</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-1">
+                          Amount: <span className="font-semibold text-foreground">₹{Number(bill.amount || 0).toLocaleString("en-IN")}</span>
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Due: {format(dueDate, "PPP")} • {bill.frequency}
+                        </p>
+                      </div>
+                    </div>
+                    {bill.status !== "paid" && (
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => handleMarkBillPaid(bill.id)}>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Mark as Paid
+                        </Button>
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Create Custom Action Dialog */}
@@ -439,6 +624,113 @@ const Actions = () => {
                 Save Plan
         </Button>
       </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Bill Dialog */}
+      <Dialog open={isBillCreateOpen} onOpenChange={setIsBillCreateOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add New Bill</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Bill Name *</Label>
+              <Input
+                placeholder="e.g., Electricity Bill, Rent"
+                value={billFormData.bill_name}
+                onChange={(e) => setBillFormData({ ...billFormData, bill_name: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Bill Type *</Label>
+                <Select
+                  value={billFormData.bill_type}
+                  onValueChange={(v) => setBillFormData({ ...billFormData, bill_type: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="electricity">Electricity</SelectItem>
+                    <SelectItem value="water">Water</SelectItem>
+                    <SelectItem value="gas">Gas</SelectItem>
+                    <SelectItem value="internet">Internet</SelectItem>
+                    <SelectItem value="phone">Phone</SelectItem>
+                    <SelectItem value="rent">Rent</SelectItem>
+                    <SelectItem value="insurance">Insurance</SelectItem>
+                    <SelectItem value="loan">Loan EMI</SelectItem>
+                    <SelectItem value="subscription">Subscription</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Amount *</Label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={billFormData.amount}
+                  onChange={(e) => setBillFormData({ ...billFormData, amount: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Due Date *</Label>
+                <Input
+                  type="date"
+                  value={billFormData.due_date}
+                  onChange={(e) => setBillFormData({ ...billFormData, due_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Frequency</Label>
+                <Select
+                  value={billFormData.frequency}
+                  onValueChange={(v) => setBillFormData({ ...billFormData, frequency: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select frequency" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="once">One-time</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                    <SelectItem value="yearly">Yearly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsBillCreateOpen(false);
+                  setBillFormData({
+                    bill_name: "",
+                    bill_type: "",
+                    amount: "",
+                    due_date: "",
+                    frequency: "monthly",
+                    auto_pay: false,
+                  });
+                }}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateBill}
+                className="flex-1"
+                disabled={!billFormData.bill_name || !billFormData.bill_type || !billFormData.amount || !billFormData.due_date}
+              >
+                Add Bill
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

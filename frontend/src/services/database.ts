@@ -531,14 +531,51 @@ export const db = {
     delete: async (id: string): Promise<void> => {
       const userId = localStorage.getItem('user_id');
       if (!userId) throw new Error('Not authenticated');
-      
+
       const { error } = await supabase
         .from('transactions')
         .delete()
         .eq('transaction_id', id)
         .eq('user_id', userId);
-      
+
       if (error) throw error;
+    },
+
+    bulkCreate: async (transactions: Array<{
+      transaction_date: string;
+      transaction_time?: string;
+      amount: number;
+      transaction_type: 'income' | 'expense';
+      category?: string;
+      subcategory?: string;
+      description?: string;
+      payment_method?: string;
+      merchant_name?: string;
+      location?: string;
+      source?: string;
+      account_id?: string;
+      is_recurring?: boolean;
+      recurring_frequency?: string;
+      tags?: string[];
+    }>): Promise<Transaction[]> => {
+      const userId = localStorage.getItem('user_id');
+      if (!userId) throw new Error('Not authenticated');
+
+      const transactionsWithUser = transactions.map(t => ({
+        user_id: userId,
+        ...t,
+        verified: true,
+        input_method: 'pdf_import',
+        confidence_score: 0.85,
+      }));
+
+      const { data: created, error } = await supabase
+        .from('transactions')
+        .insert(transactionsWithUser)
+        .select();
+
+      if (error) throw error;
+      return (created || []) as Transaction[];
     },
   },
 
