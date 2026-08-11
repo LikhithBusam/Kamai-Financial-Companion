@@ -188,61 +188,48 @@ const getUserId = (): string | null => {
 // DATABASE SERVICE
 // ============================================================================
 
+// Supabase Auth is email-based. The UI collects a phone number (matching
+// the target audience of Indian gig workers, some without reliable email),
+// so we sign up/in with a synthetic, non-deliverable email derived from the
+// phone number. Any real email the user provides is stored as an ordinary
+// contact field on `profiles`, not as the Supabase Auth identity. Known
+// consequence: Supabase's built-in "forgot password" email flow can only
+// reach users who separately provided a real email.
+//
+// The domain MUST NOT be a reserved/placeholder TLD (.internal, .test,
+// .invalid, .example, or example.com/.org/.net) -- Supabase's signup
+// validator rejects those specifically with `email_address_invalid`,
+// confirmed empirically. It does not do DNS/MX resolution, so any
+// otherwise-normal-looking domain (real or not) passes.
+// Also requires "Confirm email" to be OFF in the Supabase project's Auth
+// settings (Authentication > Sign In / Providers > Email) -- these
+// addresses have no real inbox, so a confirmation-required signup could
+// never be completed.
+const shadowEmail = (phone_number: string): string => `${phone_number}@users.kamai.app`;
+
 export const db = {
   // ========== AUTHENTICATION ==========
   auth: {
     login: async (phone_number: string, password: string) => {
-      try {
-        // Simple validation
-        if (!phone_number || !password) {
-          throw new Error('Phone number and password are required');
-        }
-
-        if (phone_number.length !== 10) {
-          throw new Error('Please enter a valid 10-digit phone number');
-        }
-
-        // Check if user exists in database and get their UUID
-        const { data: existingUser, error: userError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('phone_number', phone_number)
-          .single();
-
-        if (userError && userError.code !== 'PGRST116') {
-          console.error('[AUTH] Database error during login:', userError);
-          throw new Error('Database error occurred');
-        }
-
-        if (!existingUser) {
-          throw new Error('User not found. Please sign up first.');
-        }
-
-        // Simple password validation (in real app, use proper hashing)
-        // For now, we'll just check if password matches a simple pattern
-        // In production, you should implement proper password hashing
-        const isValidPassword = password.length >= 6; // Simple validation
-        
-        if (!isValidPassword) {
-          throw new Error('Invalid password');
-        }
-
-        // Use the actual UUID from the database
-        const userId = existingUser.user_id;
-        localStorage.setItem('user_id', userId);
-        localStorage.setItem('auth_token', `token_${userId}_${Date.now()}`);
-        
-        console.log('[AUTH] Login successful for user:', userId);
-        
-        return {
-          user: existingUser,
-          user_id: userId,
-          access_token: `token_${userId}_${Date.now()}`
-        };
-      } catch (error) {
-        console.error('[AUTH] Login error:', error);
-        throw error;
+      if (!phone_number || !password) {
+        throw new Error('Phone number and password are required');
       }
+      if (phone_number.length !== 10) {
+        throw new Error('Please enter a valid 10-digit phone number');
+      }
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: shadowEmail(phone_number),
+        password,
+      });
+
+      if (error) {
+        throw new Error(error.message === 'Invalid login credentials'
+          ? 'Incorrect phone number or password.'
+          : error.message);
+      }
+
+      return { user: data.user, session: data.session, user_id: data.user?.id };
     },
 
     signup: async (userData: {
@@ -256,90 +243,46 @@ export const db = {
       date_of_birth?: string;
       preferred_language?: string;
     }) => {
-      try {
-        // Validate required fields
-        if (!userData.phone_number || !userData.full_name || !userData.password) {
-          throw new Error('Phone number, full name, and password are required');
-        }
-
-        if (userData.phone_number.length !== 10) {
-          throw new Error('Please enter a valid 10-digit phone number');
-        }
-
-        if (userData.password.length < 6) {
-          throw new Error('Password must be at least 6 characters');
-        }
-
-        // Check if user already exists
-        const { data: existingUser, error: checkError } = await supabase
-          .from('users')
-          .select('user_id')
-          .eq('phone_number', userData.phone_number)
-          .single();
-
-        if (existingUser) {
-          throw new Error('User with this phone number already exists. Please login instead.');
-        }
-
-        // Generate a proper UUID for user_id
-        const userId = crypto.randomUUID();
-
-        // Create new user in database
-        const newUser = {
-          user_id: userId,
-          phone_number: userData.phone_number,
-          full_name: userData.full_name,
-          email: userData.email || '',
-          occupation: userData.occupation || '',
-          city: userData.city || '',
-          state: userData.state || '',
-          date_of_birth: userData.date_of_birth || null,
-          preferred_language: userData.preferred_language || 'en',
-          is_active: true,
-          kyc_verified: false,
-          onboarding_completed: false,
-          created_at: new Date().toISOString()
-        };
-
-        const { data: createdUser, error: insertError } = await supabase
-          .from('users')
-          .insert([newUser])
-          .select()
-          .single();
-
-        if (insertError) {
-          console.error('[AUTH] Error creating user:', insertError);
-          
-          // More detailed error message
-          if (insertError.code === '23505') {
-            throw new Error('User with this phone number already exists. Please login instead.');
-          } else if (insertError.code === '23502') {
-            throw new Error('Missing required information. Please fill all required fields.');
-          } else {
-            throw new Error(`Failed to create user account: ${insertError.message || 'Unknown database error'}`);
-          }
-        }
-
-        // Set authentication tokens
-        localStorage.setItem('user_id', userId);
-        localStorage.setItem('auth_token', `token_${userId}_${Date.now()}`);
-        
-        console.log('[AUTH] Signup successful for user:', userId);
-        
-        return {
-          user: createdUser,
-          user_id: userId,
-          access_token: `token_${userId}_${Date.now()}`
-        };
-      } catch (error) {
-        console.error('[AUTH] Signup error:', error);
-        throw error;
+      if (!userData.phone_number || !userData.full_name || !userData.password) {
+        throw new Error('Phone number, full name, and password are required');
       }
+      if (userData.phone_number.length !== 10) {
+        throw new Error('Please enter a valid 10-digit phone number');
+      }
+      if (userData.password.length < 6) {
+        throw new Error('Password must be at least 6 characters');
+      }
+
+      const { data, error } = await supabase.auth.signUp({
+        email: shadowEmail(userData.phone_number),
+        password: userData.password,
+        options: {
+          data: {
+            phone_number: userData.phone_number,
+            full_name: userData.full_name,
+            email: userData.email || '',
+            occupation: userData.occupation || '',
+            city: userData.city || '',
+            state: userData.state || '',
+            date_of_birth: userData.date_of_birth || null,
+            preferred_language: userData.preferred_language || 'en',
+          },
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message.includes('already registered')
+          ? 'An account with this phone number already exists. Please login instead.'
+          : error.message);
+      }
+
+      // The handle_new_user() DB trigger (supabase/migrations) creates the
+      // matching `profiles` row from this same metadata automatically.
+      return { user: data.user, session: data.session, user_id: data.user?.id };
     },
 
-    logout: () => {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('user_id');
+    logout: async () => {
+      await supabase.auth.signOut();
     },
   },
 
@@ -356,7 +299,7 @@ export const db = {
       }
 
   const { data, error } = await supabase
-        .from('users')
+        .from('profiles')
     .select('*')
     .eq('user_id', userId)
         .single();
@@ -378,7 +321,7 @@ export const db = {
       if (!userId) throw new Error('Not authenticated');
       
       const { data: updated, error } = await supabase
-        .from('users')
+        .from('profiles')
         .update({ ...data, updated_at: new Date().toISOString() })
         .eq('user_id', userId)
         .select()
