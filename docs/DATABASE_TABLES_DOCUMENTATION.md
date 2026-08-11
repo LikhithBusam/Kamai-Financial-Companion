@@ -17,18 +17,16 @@ This document provides a comprehensive overview of all database tables in the Ag
 
 ## Core User Tables
 
-### 1. `users`
+### 1. `profiles` (formerly `users`)
 
-**Purpose:** Core identity record for each user in the system.
+**Purpose:** Application-level identity/profile record for each user. Credentials live in Supabase-managed `auth.users`, not here — this table has no password column; it's populated automatically from signup metadata by a DB trigger (see `supabase/migrations/20260811000100_profiles.sql`) and keyed 1:1 to `auth.users.id`.
 
 **Key Fields:**
-- `user_id` (UUID, Primary Key)
-- `phone_number` (unique identifier for login)
+- `user_id` (UUID, Primary Key, references `auth.users(id)`)
+- `phone_number` (unique — used as the login identifier via a synthetic shadow email, see `CLAUDE.md`)
 - `email`, `full_name`
 - `date_of_birth`, `preferred_language`
-- `user_type` (e.g., "gig_worker")
 - `occupation`, `city`, `state`, `pin_code`
-- `password` (hashed)
 - `kyc_verified`, `onboarding_completed` (boolean flags)
 - `is_active`, `created_at`, `updated_at`
 
@@ -796,10 +794,12 @@ This document provides a comprehensive overview of all database tables in the Ag
 
 ## Notes
 
-- **Backup Tables:** `transactions_backup` and `agent_logs` are system tables not exposed in UI
+- **Schema source of truth:** `supabase/migrations/` (not this document, which predates it and mixed real and aspirational schema). This doc has been spot-corrected for `profiles` (see above) but the per-table sections below may still describe fields or tables that were never actually created — cross-check against the migrations before relying on this doc for exact columns.
+- **Tables intentionally not created in the Phase 0 rebuild** (documented below but never queried anywhere in `frontend/src/services/database.ts` or the backend): `transactions_backup`, `income_patterns`, `action_outcomes`, `outcomes`, `notifications`, `context_events`, `user_schemes`, `human_escalations`. Add them back in a migration if a real feature needs them.
+- **`agent_logs`** is a real table (backend-only, read via the service-role key in `backend/main.py`'s `/api/agent-logs/{user_id}`), not exposed directly in the frontend UI.
 - **Future Features:** Government schemes page is identified but not yet implemented
 - **Data Seeding:** Automatic data seeding populates sample data for new users (see `AUTOMATIC_DATA_SEEDING.md`)
-- **Direct Database Access:** Frontend queries Supabase directly using `user_id` from localStorage
+- **Direct Database Access:** Frontend queries Supabase directly using `user_id` from localStorage (mirrored from the real Supabase Auth session — see `CLAUDE.md`), now enforced server-side by RLS policies rather than trusted at face value.
 
 ---
 

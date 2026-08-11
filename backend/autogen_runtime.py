@@ -46,8 +46,8 @@ async def write_agent_output_to_db(user_id: str, agent_name: str, json_output: s
                 response = requests.post(
                     f"{SUPABASE_URL}/rest/v1/budgets",
                     headers={
-                        "apikey": SUPABASE_ANON_KEY,
-                        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+                        "apikey": SUPABASE_SERVICE_KEY,
+                        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
                         "Content-Type": "application/json",
                         "Prefer": "return=representation"
                     },
@@ -73,8 +73,8 @@ async def write_agent_output_to_db(user_id: str, agent_name: str, json_output: s
                 response = requests.post(
                     f"{SUPABASE_URL}/rest/v1/recommendations",
                     headers={
-                        "apikey": SUPABASE_ANON_KEY,
-                        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+                        "apikey": SUPABASE_SERVICE_KEY,
+                        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
                         "Content-Type": "application/json",
                         "Prefer": "return=representation"
                     },
@@ -96,8 +96,8 @@ async def write_agent_output_to_db(user_id: str, agent_name: str, json_output: s
             response = requests.post(
                 f"{SUPABASE_URL}/rest/v1/income_patterns",
                 headers={
-                    "apikey": SUPABASE_ANON_KEY,
-                    "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+                    "apikey": SUPABASE_SERVICE_KEY,
+                    "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
                     "Content-Type": "application/json",
                     "Prefer": "return=representation"
                 },
@@ -118,8 +118,8 @@ async def write_agent_output_to_db(user_id: str, agent_name: str, json_output: s
             response = requests.post(
                 f"{SUPABASE_URL}/rest/v1/risk_assessments",
                 headers={
-                    "apikey": SUPABASE_ANON_KEY,
-                    "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+                    "apikey": SUPABASE_SERVICE_KEY,
+                    "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
                     "Content-Type": "application/json",
                     "Prefer": "return=representation"
                 },
@@ -139,8 +139,8 @@ async def write_agent_output_to_db(user_id: str, agent_name: str, json_output: s
             response = requests.post(
                 f"{SUPABASE_URL}/rest/v1/tax_records",
                 headers={
-                    "apikey": SUPABASE_ANON_KEY,
-                    "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+                    "apikey": SUPABASE_SERVICE_KEY,
+                    "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
                     "Content-Type": "application/json",
                     "Prefer": "return=representation"
                 },
@@ -161,8 +161,8 @@ async def write_agent_output_to_db(user_id: str, agent_name: str, json_output: s
             response = requests.post(
                 f"{SUPABASE_URL}/rest/v1/income_forecasts",
                 headers={
-                    "apikey": SUPABASE_ANON_KEY,
-                    "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+                    "apikey": SUPABASE_SERVICE_KEY,
+                    "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
                     "Content-Type": "application/json",
                     "Prefer": "return=representation"
                 },
@@ -183,8 +183,8 @@ async def write_agent_output_to_db(user_id: str, agent_name: str, json_output: s
             response = requests.post(
                 f"{SUPABASE_URL}/rest/v1/financial_health",
                 headers={
-                    "apikey": SUPABASE_ANON_KEY,
-                    "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+                    "apikey": SUPABASE_SERVICE_KEY,
+                    "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
                     "Content-Type": "application/json",
                     "Prefer": "return=representation"
                 },
@@ -216,8 +216,8 @@ async def write_agent_output_to_db(user_id: str, agent_name: str, json_output: s
                 response = requests.post(
                     f"{SUPABASE_URL}/rest/v1/executed_actions",
                     headers={
-                        "apikey": SUPABASE_ANON_KEY,
-                        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+                        "apikey": SUPABASE_SERVICE_KEY,
+                        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
                         "Content-Type": "application/json",
                         "Prefer": "return=representation"
                     },
@@ -251,8 +251,8 @@ async def write_agent_output_to_db(user_id: str, agent_name: str, json_output: s
                 response = requests.post(
                     f"{SUPABASE_URL}/rest/v1/savings_goals",
                     headers={
-                        "apikey": SUPABASE_ANON_KEY,
-                        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+                        "apikey": SUPABASE_SERVICE_KEY,
+                        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
                         "Content-Type": "application/json",
                         "Prefer": "return=representation"
                     },
@@ -280,8 +280,8 @@ async def write_agent_output_to_db(user_id: str, agent_name: str, json_output: s
                 response = requests.post(
                     f"{SUPABASE_URL}/rest/v1/investment_recommendations",
                     headers={
-                        "apikey": SUPABASE_ANON_KEY,
-                        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+                        "apikey": SUPABASE_SERVICE_KEY,
+                        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
                         "Content-Type": "application/json",
                         "Prefer": "return=representation"
                     },
@@ -312,8 +312,8 @@ async def write_agent_output_to_db(user_id: str, agent_name: str, json_output: s
                 response = requests.post(
                     f"{SUPABASE_URL}/rest/v1/bills",
                     headers={
-                        "apikey": SUPABASE_ANON_KEY,
-                        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+                        "apikey": SUPABASE_SERVICE_KEY,
+                        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
                         "Content-Type": "application/json",
                         "Prefer": "return=representation"
                     },
@@ -350,8 +350,8 @@ async def write_agent_output_to_db(user_id: str, agent_name: str, json_output: s
                 response = requests.post(
                     f"{SUPABASE_URL}/rest/v1/financial_goals",
                     headers={
-                        "apikey": SUPABASE_ANON_KEY,
-                        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+                        "apikey": SUPABASE_SERVICE_KEY,
+                        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
                         "Content-Type": "application/json",
                         "Prefer": "return=representation"
                     },
@@ -373,93 +373,17 @@ async def write_agent_output_to_db(user_id: str, agent_name: str, json_output: s
         return False
 
 from autogen_agentchat.agents import AssistantAgent
-from autogen_agentchat.messages import TextMessage
-from autogen_core import CancellationToken
-from autogen_core.models import ModelInfo
-from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_core.tools import Tool
 
 
-# Supabase configuration
-SUPABASE_URL = "https://ubjrclaiqqxngfcylbfs.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVianJjbGFpcXF4bmdmY3lsYmZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5NzMzOTEsImV4cCI6MjA3OTU0OTM5MX0.Kkp7BV0ZSWq0ZR6YVOzwQwX08u3NOCxClvQWknWJlbA"
+# Supabase configuration. Agent writes act on behalf of the user but run as
+# a trusted backend service, so they use the service-role key (which
+# bypasses the per-user RLS policies in supabase/migrations/) rather than
+# the anon key.
+SUPABASE_URL = os.environ["SUPABASE_URL"]
+SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 
 
-class AzureFoundryClient:
-    """Custom Azure Foundry client that handles the correct URL format"""
-    
-    def __init__(self, model: str, api_key: str, endpoint: str, api_version: str):
-        self.model = model
-        self.api_key = api_key
-        self.endpoint = endpoint.rstrip('/')
-        self.api_version = api_version
-        self.base_url = f"{self.endpoint}/openai/deployments/{self.model}/chat/completions"
-        self._model_info = ModelInfo(
-            function_calling=True,
-            structured_output=True,
-            json_output=True,
-            vision=False,
-            family="openai"
-        )
-    
-    @property
-    def model_info(self):
-        return self._model_info
-    
-    async def create(self, messages, **kwargs):
-        """Create chat completion using Azure Foundry format"""
-        headers = {
-            'api-key': self.api_key,
-            'Content-Type': 'application/json'
-        }
-        
-        # Convert AutoGen messages to OpenAI format
-        openai_messages = []
-        for msg in messages:
-            if hasattr(msg, 'content'):
-                openai_messages.append({
-                    'role': 'user' if 'user' in str(type(msg)).lower() else 'assistant',
-                    'content': msg.content
-                })
-            else:
-                openai_messages.append({
-                    'role': 'user',
-                    'content': str(msg)
-                })
-        
-        data = {
-            'messages': openai_messages,
-            'max_tokens': kwargs.get('max_tokens', 2000)  # Limit to 2000 tokens
-        }
-        
-        response = requests.post(
-            f"{self.base_url}?api-version={self.api_version}",
-            headers=headers,
-            json=data
-        )
-        
-        if response.status_code != 200:
-            raise Exception(f"Azure Foundry API error: {response.status_code} - {response.text}")
-        
-        result = response.json()
-        
-        # Convert to AutoGen-compatible format
-        from autogen_ext.models.openai._openai_client import ChatCompletion
-        choice = result.get('choices', [{}])[0]
-        message = choice.get('message', {})
-        content = message.get('content', '')
-        
-        return ChatCompletion(
-            choices=[choice],
-            created=result.get('created'),
-            id=result.get('id'),
-            model=result.get('model'),
-            object=result.get('object'),
-            usage=result.get('usage', {})
-        )
-    
-    async def close(self):
-        pass
 
 
 def postgrestRequest(table: str, method: str = "GET", data: Optional[Dict] = None, filters: Optional[Dict] = None) -> str:
@@ -477,8 +401,8 @@ def postgrestRequest(table: str, method: str = "GET", data: Optional[Dict] = Non
     """
     url = f"{SUPABASE_URL}/rest/v1/{table}"
     headers = {
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
         "Content-Type": "application/json",
         "Prefer": "return=representation"
     }
@@ -591,48 +515,18 @@ def _normalize_npx_command(command: str) -> str:
     return command
 
 
-def create_openai_model_client(model: Optional[str] = None) -> OpenAIChatCompletionClient:
-    """Create OpenAI ChatGPT model client with proper configuration"""
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable not set")
-    
-    return OpenAIChatCompletionClient(
-        model=model or os.getenv("OPENAI_MODEL", "gpt-4"),
-        api_key=api_key,
-    )
+class OpenAICompatibleClient:
+    """
+    Minimal REST client for any provider exposing an OpenAI-compatible
+    /chat/completions endpoint. Gemini and Groq both do, so one class covers
+    both -- only base_url/api_key/model differ per provider.
+    """
 
-
-def create_openrouter_model_client(model: Optional[str] = None) -> OpenAIChatCompletionClient:
-    """Create OpenRouter model client with proper configuration"""
-    api_key = os.getenv("OPENROUTER_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENROUTER_API_KEY environment variable not set")
-    
-    return OpenAIChatCompletionClient(
-        model=model or "openai/gpt-oss-20b:free",
-        api_key=api_key,
-        base_url="https://openrouter.ai/api/v1",
-        model_info=ModelInfo(
-            function_calling=True,
-            structured_output=True,
-            json_output=True,
-            vision=False,
-            family="openai"
-        ),
-        max_tokens=2000  # Add token limit for OpenRouter too
-    )
-
-
-class AzureOpenAIClient:
-    """Custom Azure OpenAI client that works with AutoGen"""
-    
-    def __init__(self, api_key: str, endpoint: str, deployment: str, api_version: str):
+    def __init__(self, provider: str, api_key: str, base_url: str, model: str):
+        self.provider = provider
         self.api_key = api_key
-        self.endpoint = endpoint
-        self.deployment = deployment
-        self.api_version = api_version
-        self.base_url = f"{endpoint}/openai/deployments/{deployment}"
+        self.base_url = base_url.rstrip('/')
+        self.model = model
         # Add model_info attribute for AutoGen compatibility
         self.model_info = {
             "function_calling": True,
@@ -641,130 +535,122 @@ class AzureOpenAIClient:
             "vision": False,
             "family": "openai"
         }
-    
+
     async def create(self, messages, **kwargs):
         """Create chat completion"""
-        import requests
-        
-        # Rate limiting - wait 1 minute between calls
+        # Rate limiting - shared across providers so a Gemini->Groq fallback
+        # within one call doesn't burst past either provider's free-tier
+        # quota.
         global last_call_time
         current_time = time.time()
         if current_time - last_call_time < RATE_LIMIT_DELAY:
             wait_time = RATE_LIMIT_DELAY - (current_time - last_call_time)
-            print(f"[Azure Client] Rate limiting: waiting {wait_time:.1f} seconds...")
+            print(f"[{self.provider}] Rate limiting: waiting {wait_time:.1f} seconds...")
             await asyncio.sleep(wait_time)
-        
+
         last_call_time = time.time()
-        
+
         headers = {
-            "api-key": self.api_key,
+            "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
-        
+
         # Convert AutoGen messages to OpenAI format
         openai_messages = []
         for msg in messages:
             if isinstance(msg, dict):
-                # If it's already a dict, use it directly
                 openai_messages.append(msg)
             elif hasattr(msg, 'content'):
-                # If it's an object with content attribute
                 openai_messages.append({
                     "role": "user" if not hasattr(msg, 'source') or msg.source == "user" else "assistant",
                     "content": msg.content
                 })
             else:
-                # Convert to string and use as user message
                 openai_messages.append({
                     "role": "user",
                     "content": str(msg)
                 })
-        
-        # Ensure we have at least one message
+
         if not openai_messages:
             openai_messages = [{"role": "user", "content": "Please analyze the data."}]
-        
+
         data = {
+            "model": self.model,
             "messages": openai_messages,
-            "max_tokens": kwargs.get('max_tokens', 8192),  # Increased to 8192 tokens
+            "max_tokens": kwargs.get('max_tokens', 8192),
             "temperature": kwargs.get('temperature', 0.7)
         }
-        
+
+        response = requests.post(
+            f"{self.base_url}/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=60,
+        )
+
+        if response.status_code != 200:
+            raise RuntimeError(f"{self.provider} API error: {response.status_code} - {response.text}")
+
+        result = response.json()
+        print(f"[{self.provider}] Raw response: {str(result)[:500]}...")
+
         try:
-            response = requests.post(
-                f"{self.base_url}/chat/completions?api-version={self.api_version}",
-                headers=headers,
-                json=data
-            )
-            
-            if response.status_code != 200:
-                raise Exception(f"Azure OpenAI API error: {response.status_code} - {response.text}")
-            
-            result = response.json()
-            print(f"[Azure Client] Raw response: {str(result)[:500]}...")
-            
-            # Create a proper model result that AutoGen expects
-            try:
-                from autogen_ext.models.openai._openai_client import ChatCompletion
-            except ImportError:
-                # Fallback: Create a simple mock ChatCompletion
-                class ChatCompletion:
-                    def __init__(self, choices, created, id, model, object, usage):
-                        self.choices = choices
-                        self.created = created
-                        self.id = id
-                        self.model = model
-                        self.object = object
-                        self.usage = usage
-            
-            choice = result.get('choices', [{}])[0]
-            message = choice.get('message', {})
-            content = message.get('content', '')
-            
-            print(f"[Azure Client] Extracted content: {content[:200]}...")
-            
-            if content:
-                # Create a proper ChatCompletion object that AutoGen expects
-                return ChatCompletion(
-                    choices=[choice],
-                    created=result.get('created'),
-                    id=result.get('id'),
-                    model=result.get('model'),
-                    object=result.get('object'),
-                    usage=result.get('usage', {})
-                )
-            else:
-                print(f"[Azure Client] No content in response")
-                # Return a mock result with empty content
-                return ChatCompletion(
-                    choices=[{"message": {"content": "No response generated", "role": "assistant"}}],
-                    created=result.get('created'),
-                    id=result.get('id'),
-                    model=result.get('model'),
-                    object=result.get('object'),
-                    usage=result.get('usage', {})
-                )
-            
-        except Exception as e:
-            print(f"[Azure Client] Error: {str(e)}")
-            return None
+            from autogen_ext.models.openai._openai_client import ChatCompletion
+        except ImportError:
+            class ChatCompletion:
+                def __init__(self, choices, created, id, model, object, usage):
+                    self.choices = choices
+                    self.created = created
+                    self.id = id
+                    self.model = model
+                    self.object = object
+                    self.usage = usage
+
+        choice = result.get('choices', [{}])[0]
+        message = choice.get('message', {})
+        content = message.get('content', '')
+
+        print(f"[{self.provider}] Extracted content: {content[:200]}...")
+
+        return ChatCompletion(
+            choices=[choice] if content else [{"message": {"content": "No response generated", "role": "assistant"}}],
+            created=result.get('created'),
+            id=result.get('id'),
+            model=result.get('model'),
+            object=result.get('object'),
+            usage=result.get('usage', {})
+        )
+
+    async def close(self):
+        pass
 
 
-def create_azure_openai_model_client(model: Optional[str] = None) -> AzureOpenAIClient:
-    """Create Azure OpenAI model client that works with AutoGen"""
-    api_key = os.getenv("AZURE_OPENAI_API_KEY")
-    endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-    api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
-    deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1")
-    
-    if not api_key or not endpoint:
-        raise RuntimeError("AZURE_OPENAI_API_KEY and AZURE_OPENAI_API_ENDPOINT environment variables must be set")
-    
-    print(f"[Azure] Using endpoint: {endpoint}")
-    print(f"[Azure] Using deployment: {deployment}")
-    print(f"[Azure] Using API version: {api_version}")
-    
-    return AzureOpenAIClient(api_key, endpoint, deployment, api_version)
+def create_gemini_model_client(model: Optional[str] = None) -> OpenAICompatibleClient:
+    """Create a Gemini client via its OpenAI-compatible endpoint."""
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise RuntimeError("GOOGLE_API_KEY environment variable must be set")
+
+    return OpenAICompatibleClient(
+        provider="Gemini",
+        api_key=api_key,
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+        model=model or os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+    )
+
+
+def create_groq_model_client(model: Optional[str] = None) -> OpenAICompatibleClient:
+    """Create a Groq client via its OpenAI-compatible endpoint."""
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise RuntimeError("GROQ_API_KEY environment variable must be set")
+
+    return OpenAICompatibleClient(
+        provider="Groq",
+        api_key=api_key,
+        base_url="https://api.groq.com/openai/v1",
+        model=model or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+    )
 
 
 async def run_autogen_mcp_task(
@@ -779,31 +665,13 @@ async def run_autogen_mcp_task(
     model: Optional[str] = None,
     use_azure: bool = False,
 ) -> str:
-    """Run AutoGen task with Supabase API tools instead of MCP"""
-    
-    # Create model client (Azure OpenAI only)
-    if use_azure and os.getenv("AZURE_OPENAI_API_KEY"):
-        try:
-            print("Using Azure OpenAI")
-            model_client = create_azure_openai_model_client(model=model)
-        except Exception as e:
-            print(f"Azure OpenAI failed: {str(e)}")
-            raise RuntimeError("Azure OpenAI is required but failed to initialize")
-    else:
-        raise RuntimeError("Azure OpenAI is required. Please set AZURE_OPENAI_API_KEY and use_azure=True")
-    
-    # Create tools as simple functions (AutoGen will handle them)
-    tools = [postgrestRequest, sqlToRest]
-    
-    # Create agent with tools
-    agent = AssistantAgent(
-        name=agent_name,
-        model_client=model_client,
-        tools=tools,
-        system_message=system_prompt,
-        reflect_on_tool_use=False,
-    )
-    
+    """Run AutoGen task with Supabase API tools instead of MCP.
+
+    use_azure is accepted but ignored -- kept so the 12 agent call sites
+    (which all pass use_azure=True) don't need to change. The provider is
+    always Gemini first, falling back to Groq if Gemini's call raises.
+    """
+
     # Create a simple conversation and run it
     try:
         print(f"\n{'*'*80}")
@@ -813,19 +681,40 @@ async def run_autogen_mcp_task(
         print(f"[AutoGen] Task: {task[:200]}...")
         print(f"[AutoGen] Full Task:\n{task}")
         print(f"{'*'*80}")
-        
+        print(f"[AutoGen] System prompt: {system_prompt[:100]}...")
+
         # Create messages for the model
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": task}
         ]
-        
-        print(f"[AutoGen] Sending messages to Azure OpenAI...")
-        print(f"[AutoGen] System prompt: {system_prompt[:100]}...")
-        
-        # Call the model client directly
-        model_result = await model_client.create(messages)
-        
+
+        # Gemini first; fall back to Groq on ANY failure (missing/invalid
+        # key, rate limit, request error) -- not just client init. If both
+        # fail, the exception falls through to this function's own
+        # except-Exception below, same as any other failure here.
+        try:
+            model_client = create_gemini_model_client(model=model)
+            model_result = await model_client.create(messages)
+        except Exception as e:
+            print(f"[AutoGen] Gemini failed ({e}), falling back to Groq...")
+            model_client = create_groq_model_client(model=model)
+            model_result = await model_client.create(messages)
+
+        # Create tools as simple functions (AutoGen will handle them)
+        tools = [postgrestRequest, sqlToRest]
+
+        # Create agent with tools (constructed for parity with the
+        # AutoGen-based design; its tool-calling loop is not actually
+        # invoked below -- see the direct model_client.create() call above)
+        agent = AssistantAgent(
+            name=agent_name,
+            model_client=model_client,
+            tools=tools,
+            system_message=system_prompt,
+            reflect_on_tool_use=False,
+        )
+
         print(f"[AutoGen] Model result type: {type(model_result)}")
         print(f"[AutoGen] Model result: {str(model_result)[:200]}...")
         

@@ -12,10 +12,7 @@ export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const userId = localStorage.getItem('user_id');
-    
-    // If not loading and not authenticated and no user_id, redirect to login
-    if (!isLoading && !isAuthenticated && !userId) {
+    if (!isLoading && !isAuthenticated) {
       navigate("/login", { replace: true });
     }
   }, [isAuthenticated, isLoading, navigate]);
@@ -32,9 +29,7 @@ export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     );
   }
 
-  // Check if user_id exists (for testing or if auth state is not synced)
-  const userId = localStorage.getItem('user_id');
-  if (!isAuthenticated && !userId) {
+  if (!isAuthenticated) {
     return null; // Will redirect in useEffect
   }
 

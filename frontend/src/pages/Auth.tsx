@@ -204,6 +204,10 @@ const Auth = () => {
                 </form>
 
                 <div className="text-center">
+                  {/* Not wired up: users sign up with a synthetic shadow email
+                      (see shadowEmail() in database.ts), so Supabase's
+                      built-in resetPasswordForEmail() won't reach most
+                      accounts. Needs a phone-based reset flow first. */}
                   <button className="text-sm text-slate-600 hover:text-slate-900 hover:underline">Forgot password?</button>
                 </div>
               </TabsContent>

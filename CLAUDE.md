@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Kamai is a hackathon project: a financial companion for Indian gig workers. React/TypeScript frontend, a FastAPI backend that orchestrates 12 LLM "agents" (AutoGen + Azure OpenAI), and Supabase (Postgres) as the database. The frontend talks to Supabase directly for most reads/writes and calls the backend only to trigger agent analysis runs.
+Kamai is a hackathon project: a financial companion for Indian gig workers. React/TypeScript frontend, a FastAPI backend that orchestrates 12 LLM "agents" (AutoGen + Gemini, with Groq as a fallback provider), and Supabase (Postgres) as the database. The frontend talks to Supabase directly for most reads/writes and calls the backend only to trigger agent analysis runs.
 
 ## Commands
 
@@ -25,7 +25,7 @@ venv\Scripts\activate        # Windows; source venv/bin/activate on WSL/Linux
 pip install -r requirements.txt
 python main.py                 # FastAPI app on port 8000, docs at /docs
 ```
-Requires `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_ENDPOINT` (see `backend/.env.example`). There is no automated test suite; agent modules are runnable individually as smoke tests, e.g.:
+Requires `GOOGLE_API_KEY` (Gemini, primary) and `GROQ_API_KEY` (fallback if Gemini's call fails) — see `backend/.env.example`. There is no automated test suite; agent modules are runnable individually as smoke tests, e.g.:
 ```bash
 python agents/financial_agent.py   # runs analyze_user() against a hardcoded test user_id
 ```
@@ -45,14 +45,14 @@ This is a separate FastAPI app (OCR/voice receipt parsing via `transaction_parse
 - **`backend/README.md` and `backend/configs/agent_config.yaml`** describe a *third*, older design ("Spare Backend": Claude Agent SDK + direct Postgres access via MCP, orchestrator + 3 sub-agents via the Task tool). That design is **not** what `main.py` runs — treat those two files as stale/aspirational, not as documentation of current behavior.
 
 ### How an agent actually runs (`backend/autogen_runtime.py`)
-Despite the "MCP" naming in comments, agents do **not** use MCP or the Claude Agent SDK. Each agent (e.g. `backend/agents/financial_agent.py`) defines a system prompt that forces a specific JSON output shape, then calls `run_autogen_mcp_task(agent_name, system_prompt, task, user_id, use_azure=True)`, which:
-1. Builds an `AzureOpenAIClient` (custom Azure Foundry REST client, not the official SDK) and calls it directly with `[system, user]` messages — no AutoGen tool-calling loop.
+Despite the "MCP" naming in comments, agents do **not** use MCP or the Claude Agent SDK. Each agent (e.g. `backend/agents/financial_agent.py`) defines a system prompt that forces a specific JSON output shape, then calls `run_autogen_mcp_task(agent_name, system_prompt, task, user_id, use_azure=True)` — the `use_azure` kwarg is a historical no-op, kept only so the 12 call sites don't need touching; the provider is always Gemini-first/Groq-fallback now. It:
+1. Builds an `OpenAICompatibleClient` (one class, works against Gemini's and Groq's OpenAI-compatible endpoints — not either provider's official SDK) and calls it directly with `[system, user]` messages — no AutoGen tool-calling loop. On any failure from Gemini (bad key, rate limit, request error), it retries once against Groq.
 2. Strips markdown fences from the model's response and `json.loads`s it.
 3. Dispatches on `agent_name` inside `write_agent_output_to_db()` — a big if/elif chain that knows, per agent, which JSON key to pull out and which Supabase REST table to `POST` it to (e.g. `budget_agent` → `data["budgets"]` → `/rest/v1/budgets`).
 
 **When adding a new agent**, you must both create the agent class/prompt *and* add a matching branch in `write_agent_output_to_db()` — the agent's own code never writes to the database itself.
 
-`AzureOpenAIClient` also self-imposes a 60s rate-limit delay between calls (`RATE_LIMIT_DELAY` in `autogen_runtime.py`) — a full 12-agent run takes minutes, hence `main.py` runs agents in the background and the frontend polls `/api/status/{user_id}`.
+`OpenAICompatibleClient` also self-imposes a 60s rate-limit delay between calls (`RATE_LIMIT_DELAY` in `autogen_runtime.py`, shared across both providers) — a full 12-agent run takes minutes, hence `main.py` runs agents in the background and the frontend polls `/api/status/{user_id}`. This provider swap (Azure → Gemini/Groq) was a deliberate **narrow swap**: the 12 agents still don't fetch real transaction data or do deterministic math (see the Phase 1 roadmap note below) — only the underlying LLM client changed, nothing else about the agent architecture.
 
 ### Frontend data flow
 - `src/lib/supabase.ts` creates the Supabase client used by most of the app.
@@ -67,7 +67,7 @@ As of the Phase 0 rebuild, auth and data isolation are real:
 - **RLS is enabled and enforced** on every user-owned table (`supabase/migrations/20260811000400_rls_policies.sql`) — `auth.uid() = user_id` on every row. `government_schemes` is the one public-read reference table.
 - **Backend endpoints require a verified Supabase JWT** (`backend/auth.py`'s `get_current_user_id` dependency) — `user_id` is derived from the token, never trusted from the request body/path without an ownership check.
 - Schema lives in `supabase/migrations/` (ordered, idempotent SQL files) — apply them via the Supabase SQL editor in filename order. The old root-level `fix_users_table.sql`/`fix_auth_rls.sql`/`ensure_users_table.sql`/`supabase_new_tables.sql` are gone; they were three competing, unordered schemas (one of which `DROP TABLE ... CASCADE`d on every re-run).
-- Secrets come from env vars only: `frontend/.env.local` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) and `backend/.env` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, plus the existing `AZURE_OPENAI_*`). See `frontend/.env.example`/`backend/.env.example`. Agent writes in `autogen_runtime.py` use the **service-role** key (bypasses RLS, since agents write on a user's behalf server-side) — never the anon key.
+- Secrets come from env vars only: `frontend/.env.local` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) and `backend/.env` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `GOOGLE_API_KEY`, `GROQ_API_KEY`). See `frontend/.env.example`/`backend/.env.example`. Agent writes in `autogen_runtime.py` use the **service-role** key (bypasses RLS, since agents write on a user's behalf server-side) — never the anon key.
 - Not yet done (future phases, see the project's Phase 1/2/3 roadmap): the 12 agents still don't fetch real transaction data or do deterministic math (their tool-calling wiring is dead code, so all numbers are LLM-fabricated), and several frontend features are still decorative stubs (Actions approve/pause, Savings "Start Investing" button, RiskDashboard's silent fake fallback, Profile's password-change form — the last one is now buildable via `supabase.auth.updateUser()`).
 
 ### Other known rough edges

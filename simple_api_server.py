@@ -18,17 +18,12 @@ import uvicorn
 
 app = FastAPI()
 
-# Enable CORS for frontend
+# Enable CORS for frontend. Defaults to the frontend's actual dev port
+# (8080, see frontend/vite.config.ts); production deployments must set
+# CORS_ALLOWED_ORIGINS to the real deployed frontend origin(s).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # React default
-        "http://localhost:5173",  # Vite default
-        "http://localhost:8080",  # Vue default
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:8080",
-    ],
+    allow_origins=os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:8080").split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

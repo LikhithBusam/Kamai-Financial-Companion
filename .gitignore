@@ -12,6 +12,10 @@
 .env*.local
 backend/.env
 frontend/.env
+# Bare "env" filename (no leading dot) -- the env/ pattern below only
+# matches directories, so this file was previously left untracked-but-
+# committed. See CLAUDE.md "Known rough edges".
+env
 
 # ============================================
 # Node.js / Frontend

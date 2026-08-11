@@ -15,7 +15,7 @@ import sys
 import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import Depends, FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -23,6 +23,8 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+from auth import get_current_user_id
 
 # Add agents directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'agents'))
@@ -48,26 +50,22 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS configuration for Windows frontend ↔ WSL backend
+# CORS: defaults to the frontend's actual dev port (8080, see
+# frontend/vite.config.ts); production deployments must set
+# CORS_ALLOWED_ORIGINS to the real deployed frontend origin(s).
+CORS_ALLOWED_ORIGINS = os.environ.get(
+    "CORS_ALLOWED_ORIGINS", "http://localhost:8080"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # React default
-        "http://localhost:5173",  # Vite default
-        "http://localhost:8080",  # Vue default
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:8080",
-    ],
+    allow_origins=CORS_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Request/Response Models
-class AnalysisRequest(BaseModel):
-    user_id: str
-
 class AnalysisResponse(BaseModel):
     status: str
     message: str
@@ -194,19 +192,18 @@ async def root():
 
 
 @app.post("/api/analyze", response_model=AnalysisResponse)
-async def trigger_analysis(request: AnalysisRequest, background_tasks: BackgroundTasks):
+async def trigger_analysis(
+    background_tasks: BackgroundTasks,
+    user_id: str = Depends(get_current_user_id),
+):
     """
-    Trigger complete financial analysis for a user
+    Trigger complete financial analysis for the authenticated caller.
 
-    Frontend calls this after login with user_id
-    Analysis runs in background
-    Frontend fetches results directly from database
+    user_id comes from the verified Supabase JWT, not a client-supplied
+    value, so a caller can only ever trigger analysis for themselves.
+    Analysis runs in background; frontend fetches results directly from
+    the database.
     """
-
-    user_id = request.user_id
-
-    if not user_id:
-        raise HTTPException(status_code=400, detail="user_id is required")
 
     # Check if analysis already in progress
     if user_id in analysis_status and analysis_status[user_id]["status"] == "in_progress":
@@ -228,12 +225,19 @@ async def trigger_analysis(request: AnalysisRequest, background_tasks: Backgroun
 
 
 @app.get("/api/status/{user_id}", response_model=StatusResponse)
-async def get_analysis_status(user_id: str):
+async def get_analysis_status(
+    user_id: str,
+    current_user: str = Depends(get_current_user_id),
+):
     """
     Get current status of analysis for a user
 
-    Frontend can poll this to show progress
+    Frontend can poll this to show progress. Callers may only read their
+    own status.
     """
+
+    if current_user != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to view this user's status")
 
     if user_id not in analysis_status:
         raise HTTPException(
@@ -253,56 +257,60 @@ async def get_analysis_status(user_id: str):
 
 
 @app.get("/api/agent-logs/{user_id}")
-async def get_agent_logs(user_id: str):
+async def get_agent_logs(
+    user_id: str,
+    current_user: str = Depends(get_current_user_id),
+):
     """
-    Get detailed agent execution logs for a user
-    
-    Returns all agent responses and outputs for frontend display
+    Get detailed agent execution logs for a user.
+
+    Returns all agent responses and outputs for frontend display. Callers
+    may only read their own logs; the 403 check below is what makes it safe
+    to then read with the service-role key (which bypasses RLS) on their
+    behalf.
     """
+    if current_user != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to view this user's logs")
+
     try:
-        # Fetch agent logs from database
         import requests
-        
-        url = f"https://ubjrclaiqqxngfcylbfs.supabase.co/rest/v1/agent_logs"
+
+        url = f"{os.environ['SUPABASE_URL']}/rest/v1/agent_logs"
+        service_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
         headers = {
-            "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVianJjbGFpcXF4bmdmY3lsYmZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5NzMzOTEsImV4cCI6MjA3OTU0OTM5MX0.Kkp7BV0ZSWq0ZR6YVOzwQwX08u3NOCxClvQWknWJlbA",
-            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVianJjbGFpcXF4bmdmY3lsYmZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5NzMzOTEsImV4cCI6MjA3OTU0OTM5MX0.Kkp7BV0ZSWq0ZR6YVOzwQwX08u3NOCxClvQWknWJlbA"
+            "apikey": service_key,
+            "Authorization": f"Bearer {service_key}",
         }
-        
+
         params = {
             "user_id": f"eq.{user_id}",
             "order": "created_at.desc",
             "limit": "20"
         }
-        
-        response = requests.get(url, headers=headers, params=params)
+
+        response = requests.get(url, headers=headers, params=params, timeout=10)
         response.raise_for_status()
-        
+
         logs = response.json()
-        
+
         return {
             "user_id": user_id,
             "logs": logs,
             "total_count": len(logs)
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch agent logs: {str(e)}")
 
 
 @app.post("/api/analyze-sync")
-async def trigger_analysis_sync(request: AnalysisRequest):
+async def trigger_analysis_sync(user_id: str = Depends(get_current_user_id)):
     """
     Trigger analysis and wait for completion (synchronous)
 
     WARNING: This will take 5-10 minutes
     Use /api/analyze (async) for production
     """
-
-    user_id = request.user_id
-
-    if not user_id:
-        raise HTTPException(status_code=400, detail="user_id is required")
 
     try:
         results = await orchestrator.run_all_agents(user_id)

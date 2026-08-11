@@ -1,8 +1,9 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import apiService, { TokenManager } from "@/services/api";
+import apiService from "@/services/api";
 import type { User as ApiUser, Transaction as ApiTransaction, Recommendation as ApiRecommendation } from "@/services/api";
 import db from "@/services/database";
+import { supabase } from "@/lib/supabase";
 import { seedUserData } from "@/services/dataSeeder";
 
 export interface User extends ApiUser {
@@ -43,7 +44,7 @@ interface AppContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (data: any) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshData: () => Promise<void>;
 }
 
@@ -138,57 +139,42 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  // Initialize user from localStorage on mount
+  // Auth state is derived from the real Supabase session -- localStorage's
+  // 'user_id' is kept only as a mirror (set below) so the rest of
+  // database.ts's ~1500 lines of CRUD, which read it directly, keep working
+  // unchanged.
   useEffect(() => {
-    const initializeAuth = async () => {
-      const token = TokenManager.getToken();
-      const storedUser = TokenManager.getUser();
-      let userId = localStorage.getItem('user_id');
-
-      // For testing: Allow manual user_id override
-      // You can set this in browser console: localStorage.setItem('user_id', '11111111-2222-3333-4444-555555555555')
+    const syncSession = async (userId: string | undefined) => {
       if (!userId) {
-        // Check if there's a test user_id in the URL or allow manual setting
-        console.log('[AUTH] No user_id found. For testing, set: localStorage.setItem("user_id", "11111111-2222-3333-4444-555555555555")');
+        localStorage.removeItem('user_id');
+        setIsAuthenticated(false);
+        setUser(null);
+        setTransactions([]);
+        setRecommendations([]);
+        setIsLoading(false);
+        return;
       }
 
-      // Check if user is authenticated (either via token or user_id)
-      if (token && storedUser) {
-        setIsAuthenticated(true);
-        setUser({
-          ...storedUser,
-          balance: 0,
-        });
-        // Load user data
+      localStorage.setItem('user_id', userId);
+      setIsAuthenticated(true);
+      try {
         await loadUserData();
-      } else if (userId) {
-        // If user_id exists but no token, still allow access (for testing)
-        // Try to load user data from database directly
-        try {
-          setIsAuthenticated(true);
-          const userData = await db.users.getMe();
-          setUser({
-            id: userData.user_id,
-            email: userData.email || "",
-            name: userData.full_name || "User",
-            phone: userData.phone_number || "",
-            occupation: userData.occupation,
-            created_at: userData.created_at,
-            updated_at: userData.created_at, // User interface from database doesn't have updated_at
-            balance: 0,
-          });
-          // Load full user data (transactions, recommendations)
-          await loadUserData();
-        } catch (error) {
-          console.error('[AUTH] Failed to load user with user_id:', error);
-          setIsLoading(false);
-        }
-      } else {
+      } catch (error) {
+        console.error('[AUTH] Failed to load user data for session:', error);
+      } finally {
         setIsLoading(false);
       }
     };
 
-    initializeAuth();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      syncSession(session?.user?.id);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      syncSession(session?.user?.id);
+    });
+
+    return () => listener.subscription.unsubscribe();
   }, [loadUserData]);
 
   // Calculate daily goal and progress
@@ -257,44 +243,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
-  // Login
+  // Login. The onAuthStateChange listener (above) picks up the resulting
+  // session and calls loadUserData/setIsAuthenticated -- this just has to
+  // wait for signInWithPassword to resolve (throwing on bad credentials)
+  // and then navigate.
   const login = async (phone_number: string, password: string) => {
     try {
       setError(null);
       setIsLoading(true);
-
-      // Use database service which properly sets user_id in localStorage
-      const response = await db.auth.login(phone_number, password);
-
-      const userId = response.user?.user_id || response.user_id || localStorage.getItem('user_id');
-      if (userId && !localStorage.getItem('user_id')) {
-        localStorage.setItem('user_id', String(userId));
-      }
-
-      if (response.user) {
-        setUser({
-          ...response.user,
-          balance: 0,
-          created_at: response.user.created_at || new Date().toISOString(),
-          updated_at: response.user.updated_at || new Date().toISOString(),
-        });
-      } else {
-        const now = new Date().toISOString();
-        setUser({
-          id: userId || "",
-          email: "",
-          name: "User",
-          phone: phone_number,
-          balance: 0,
-          created_at: now,
-          updated_at: now,
-        });
-      }
-      setIsAuthenticated(true);
-
-      // Load user data
-      await loadUserData();
-      
+      await db.auth.login(phone_number, password);
       navigate("/dashboard");
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Login failed";
@@ -310,39 +267,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     try {
       setError(null);
       setIsLoading(true);
-
-      // Use database service which properly sets user_id in localStorage
-      const response = await db.auth.signup(data);
-
-      const userId = response.user?.user_id || response.user_id || localStorage.getItem('user_id');
-      if (userId && !localStorage.getItem('user_id')) {
-        localStorage.setItem('user_id', String(userId));
-      }
-
-      if (response.user) {
-        setUser({
-          ...response.user,
-          balance: 0,
-          created_at: response.user.created_at || new Date().toISOString(),
-          updated_at: response.user.updated_at || new Date().toISOString(),
-        });
-      } else {
-        const now = new Date().toISOString();
-        setUser({
-          id: userId || "",
-          email: data.email || "",
-          name: data.full_name || "User",
-          phone: data.phone_number || "",
-          balance: 0,
-          created_at: now,
-          updated_at: now,
-        });
-      }
-      setIsAuthenticated(true);
-
-      // Load user data
-      await loadUserData();
-      
+      await db.auth.signup(data);
       navigate("/dashboard");
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Signup failed";
@@ -354,12 +279,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Logout
-  const logout = () => {
+  const logout = async () => {
+    await db.auth.logout();
     apiService.auth.logout();
-    setUser(null);
-    setTransactions([]);
-    setRecommendations([]);
-    setIsAuthenticated(false);
     navigate("/");
   };
 

@@ -154,12 +154,19 @@ The agents use **Model Context Protocol (MCP)** to access PostgreSQL directly:
       "args": [
         "-y",
         "@modelcontextprotocol/server-postgres",
-        "postgresql://postgres.ubjrclaiqqxngfcylbfs:siva0912@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres"
+        "postgresql://postgres.<project-ref>:<password>@<pooler-host>:5432/postgres"
       ]
     }
   }
 }
 ```
+
+> This document describes the "Spare Backend" design, which is **not** what
+> `backend/main.py` actually runs (see `CLAUDE.md`) — treat it as historical
+> context, not a live config. A real, plaintext database password for the
+> project's original (now-retired) Supabase instance previously appeared
+> here and has been redacted; if that password is reused anywhere else,
+> rotate it.
 
 **Available Tools:**
 - `mcp__postgres__query` - Execute SELECT queries
