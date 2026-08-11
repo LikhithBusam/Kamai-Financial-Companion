@@ -1,6 +1,0 @@
-﻿# Supabase Configuration
-VITE_SUPABASE_URL=https://ubjrclaiqqxngfcylbfs.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVianJjbGFpcXF4bmdmY3lsYmZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5NzMzOTEsImV4cCI6MjA3OTU0OTM5MX0.Kkp7BV0ZSWq0ZR6YVOzwQwX08u3NOCxClvQWknWJlbA
-
-# Backend API (only needed for login/signup)
-VITE_API_BASE_URL=http://localhost:8000/api
