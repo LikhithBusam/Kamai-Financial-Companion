@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Kamai is a hackathon project: a financial companion for Indian gig workers. React/TypeScript frontend, a FastAPI backend that orchestrates 12 LLM "agents" (AutoGen + Gemini, with Groq as a fallback provider), and Supabase (Postgres) as the database. The frontend talks to Supabase directly for most reads/writes and calls the backend only to trigger agent analysis runs.
+Kamai is a hackathon project: a financial companion for Indian gig workers. React/TypeScript frontend, a FastAPI backend that orchestrates 9 agents (`backend/agents/*.py`) computing real numbers from real transaction data (Gemini, with Groq as fallback, used only for narrative text), and Supabase (Postgres) as the database. The frontend talks to Supabase directly for most reads/writes and calls the backend only to trigger agent analysis runs.
 
 ## Commands
 
@@ -25,9 +25,9 @@ venv\Scripts\activate        # Windows; source venv/bin/activate on WSL/Linux
 pip install -r requirements.txt
 python main.py                 # FastAPI app on port 8000, docs at /docs
 ```
-Requires `GOOGLE_API_KEY` (Gemini, primary) and `GROQ_API_KEY` (fallback if Gemini's call fails) — see `backend/.env.example`. There is no automated test suite; agent modules are runnable individually as smoke tests, e.g.:
+Requires `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` (real data fetching/writes) and `GOOGLE_API_KEY`/`GROQ_API_KEY` (narrative text only) — see `backend/.env.example`. `main.py` no longer needs `autogen-agentchat`/`autogen-ext` installed to boot (see Architecture below) — only `fastapi`, `requests`, `PyJWT`, `python-dotenv` are actually exercised by the live pipeline. There is no automated test suite; agent modules are runnable individually as smoke tests, e.g.:
 ```bash
-python agents/financial_agent.py   # runs analyze_user() against a hardcoded test user_id
+python agents/budget_agent.py   # runs analyze_user() against a hardcoded test user_id
 ```
 
 ### Standalone transaction-parser API (repo root)
@@ -40,19 +40,24 @@ This is a separate FastAPI app (OCR/voice receipt parsing via `transaction_parse
 ## Architecture
 
 ### Three services, not one backend
-- **`backend/main.py`** — the live orchestrator. `AgentOrchestrator` runs 12 agent classes from `backend/agents/*.py` in sequence for a given `user_id` (`POST /api/analyze` for async/background, `/api/analyze-sync` to await inline, `/api/status/{user_id}` to poll). Each agent's `.analyze_user(user_id)` calls into `backend/autogen_runtime.py`.
+- **`backend/main.py`** — the live orchestrator. `AgentOrchestrator` runs 9 agent classes from `backend/agents/*.py` in sequence for a given `user_id` (`POST /api/analyze` for async/background, `/api/analyze-sync` to await inline, `/api/status/{user_id}` to poll).
 - **`simple_api_server.py`** (repo root) — unrelated standalone service wrapping `transaction_parser.py` for OCR/voice-based transaction entry. Not invoked from `backend/`.
 - **`backend/README.md` and `backend/configs/agent_config.yaml`** describe a *third*, older design ("Spare Backend": Claude Agent SDK + direct Postgres access via MCP, orchestrator + 3 sub-agents via the Task tool). That design is **not** what `main.py` runs — treat those two files as stale/aspirational, not as documentation of current behavior.
 
-### How an agent actually runs (`backend/autogen_runtime.py`)
-Despite the "MCP" naming in comments, agents do **not** use MCP or the Claude Agent SDK. Each agent (e.g. `backend/agents/financial_agent.py`) defines a system prompt that forces a specific JSON output shape, then calls `run_autogen_mcp_task(agent_name, system_prompt, task, user_id, use_azure=True)` — the `use_azure` kwarg is a historical no-op, kept only so the 12 call sites don't need touching; the provider is always Gemini-first/Groq-fallback now. It:
-1. Builds an `OpenAICompatibleClient` (one class, works against Gemini's and Groq's OpenAI-compatible endpoints — not either provider's official SDK) and calls it directly with `[system, user]` messages — no AutoGen tool-calling loop. On any failure from Gemini (bad key, rate limit, request error), it retries once against Groq.
-2. Strips markdown fences from the model's response and `json.loads`s it.
-3. Dispatches on `agent_name` inside `write_agent_output_to_db()` — a big if/elif chain that knows, per agent, which JSON key to pull out and which Supabase REST table to `POST` it to (e.g. `budget_agent` → `data["budgets"]` → `/rest/v1/budgets`).
+### How an agent actually runs (Phase 1 rewrite — `backend/agents/finance_helpers.py`)
+As of the Phase 1 rewrite, agents compute real numbers in Python from real Supabase data — the LLM is used only to phrase already-computed facts as a short narrative string, never to invent the numbers themselves. Each agent's `analyze_user(user_id)`:
+1. Fetches real rows via `finance_helpers.fetch_transactions()`/`fetch_profile()`/`fetch_records()` (direct Supabase REST calls using the service-role key, bypassing RLS since the caller's ownership was already verified by `backend/auth.py` upstream).
+2. Computes real numbers via a `finance_helpers.compute_*()` function — e.g. `compute_risk_assessment()` (deterministic DTI/emergency-fund/volatility formula), `compute_gig_worker_tax()` (ported from `frontend/src/pages/Tax.tsx`'s New Regime FY24-25 slab + Section 87A rebate logic, so both surfaces agree), `compute_budgets()`, `compute_volatility_forecast()`, `compute_savings_plan()`, `compute_goal_projection()`.
+3. Optionally calls `finance_helpers.generate_narrative()` (re-exported from `backend/llm_client.py`) with the already-computed numbers, to get 1-2 sentences of plain-language explanation. Gemini first, Groq fallback on any failure — see `llm_client.py`. **Gemini 2.5's "thinking" mode will silently return empty/truncated content unless `reasoning_effort: "none"` is set** (confirmed empirically; `llm_client.OpenAICompatibleClient` already sets this for Gemini calls) — worth knowing if you add a new narrative call path that bypasses this client.
+4. Writes the result directly to its target table via `finance_helpers.write_record()`/`update_record()` — no LLM-JSON-parsing, no separate dispatch table. Each agent owns its own write.
 
-**When adding a new agent**, you must both create the agent class/prompt *and* add a matching branch in `write_agent_output_to_db()` — the agent's own code never writes to the database itself.
+**`backend/autogen_runtime.py` and its `run_autogen_mcp_task()`/`write_agent_output_to_db()` are now dead code for the live pipeline** — none of the 9 agents import it anymore (confirmed: `main.py` boots without `autogen-agentchat`/`autogen-ext` installed). It's kept only because two orphaned, not-wired-into-`main.py` files (`agents/financial_agent.py`, `agents/monitor.py`) still import it; if those get cleaned up too, `autogen_runtime.py` can go. `backend/llm_client.py` holds the actual live LLM client now (extracted out of `autogen_runtime.py` specifically so `finance_helpers.py` doesn't need the AutoGen dependency stack).
 
-`OpenAICompatibleClient` also self-imposes a 60s rate-limit delay between calls (`RATE_LIMIT_DELAY` in `autogen_runtime.py`, shared across both providers) — a full 12-agent run takes minutes, hence `main.py` runs agents in the background and the frontend polls `/api/status/{user_id}`. This provider swap (Azure → Gemini/Groq) was a deliberate **narrow swap**: the 12 agents still don't fetch real transaction data or do deterministic math (see the Phase 1 roadmap note below) — only the underlying LLM client changed, nothing else about the agent architecture.
+**Removed agents** (audited and found to be pure no-ops or fully redundant, not just "needs fixing"): `context_agent` (never in the DB-write dispatch allowlist even before this rewrite — burned an LLM call and wrote nothing), `knowledge_agent` (same), `pattern_agent` (targeted a table, `income_patterns`, that was never actually queried by the frontend — `Stats.tsx` computes weekday/volatility patterns client-side from raw transactions directly — and its function is now provided for free by `finance_helpers.compute_income_expense_stats()`, which every other agent already calls).
+
+**Orchestration order matters now**: `budget`/`volatility`/`tax`/`risk`/`savings`/`bills`/`goals` each compute independently from real transactions, but `recommendation` and `action` read those agents' freshly-written rows (via `finance_helpers.fetch_records()`) to ground their output in real numbers — so they run last (see `AgentOrchestrator.agents` dict order in `main.py`).
+
+**When adding a new agent**: follow the pattern above (fetch → compute in a `finance_helpers.compute_*()` function → optionally narrate → `write_record()`), not the old LLM-produces-the-whole-JSON pattern.
 
 ### Frontend data flow
 - `src/lib/supabase.ts` creates the Supabase client used by most of the app.
@@ -67,9 +72,10 @@ As of the Phase 0 rebuild, auth and data isolation are real:
 - **RLS is enabled and enforced** on every user-owned table (`supabase/migrations/20260811000400_rls_policies.sql`) — `auth.uid() = user_id` on every row. `government_schemes` is the one public-read reference table.
 - **Backend endpoints require a verified Supabase JWT** (`backend/auth.py`'s `get_current_user_id` dependency) — `user_id` is derived from the token, never trusted from the request body/path without an ownership check.
 - Schema lives in `supabase/migrations/` (ordered, idempotent SQL files) — apply them via the Supabase SQL editor in filename order. The old root-level `fix_users_table.sql`/`fix_auth_rls.sql`/`ensure_users_table.sql`/`supabase_new_tables.sql` are gone; they were three competing, unordered schemas (one of which `DROP TABLE ... CASCADE`d on every re-run).
-- Secrets come from env vars only: `frontend/.env.local` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) and `backend/.env` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `GOOGLE_API_KEY`, `GROQ_API_KEY`). See `frontend/.env.example`/`backend/.env.example`. Agent writes in `autogen_runtime.py` use the **service-role** key (bypasses RLS, since agents write on a user's behalf server-side) — never the anon key.
-- Not yet done (future phases, see the project's Phase 1/2/3 roadmap): the 12 agents still don't fetch real transaction data or do deterministic math (their tool-calling wiring is dead code, so all numbers are LLM-fabricated), and several frontend features are still decorative stubs (Actions approve/pause, Savings "Start Investing" button, RiskDashboard's silent fake fallback, Profile's password-change form — the last one is now buildable via `supabase.auth.updateUser()`).
+- Secrets come from env vars only: `frontend/.env.local` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) and `backend/.env` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `GOOGLE_API_KEY`, `GROQ_API_KEY`). See `frontend/.env.example`/`backend/.env.example`. Agent writes in `finance_helpers.write_record()`/`update_record()` use the **service-role** key (bypasses RLS, since agents write on a user's behalf server-side) — never the anon key.
+- Done as of the Phase 1 rewrite (see the "How an agent actually runs" section above): the 9 remaining agents fetch real transaction/profile data and compute real numbers instead of LLM-fabricating them.
+- Not yet done: several frontend features are still decorative stubs (Actions approve/pause, Savings "Start Investing" button, RiskDashboard's silent fake fallback, Profile's password-change form — the last one is now buildable via `supabase.auth.updateUser()`). These are Phase 2, unstarted.
 
 ### Other known rough edges
-- `main.py`'s module docstring and a couple of comments still say "9 agents" — the code (`AgentOrchestrator.agents`, `agent_names`) runs 12.
 - `backend/main.py` and root `simple_api_server.py` both default to port 8000 and aren't designed to run simultaneously — still unresolved (planned for a future deployment-readiness phase).
+- `docs/DATABASE_TABLES_DOCUMENTATION.md` still documents `income_patterns` — it was never created (see the removed-agents note above) and never will be; the doc's own top note already flags tables like this as aspirational, not live schema.

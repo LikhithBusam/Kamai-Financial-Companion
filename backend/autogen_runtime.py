@@ -9,11 +9,6 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Rate limiting
-import time
-last_call_time = 0
-RATE_LIMIT_DELAY = 60  # 1 minute between calls
-
 # Helper function to write structured data to database
 async def write_agent_output_to_db(user_id: str, agent_name: str, json_output: str):
     """Parse agent JSON output and write to appropriate database tables"""
@@ -515,142 +510,10 @@ def _normalize_npx_command(command: str) -> str:
     return command
 
 
-class OpenAICompatibleClient:
-    """
-    Minimal REST client for any provider exposing an OpenAI-compatible
-    /chat/completions endpoint. Gemini and Groq both do, so one class covers
-    both -- only base_url/api_key/model differ per provider.
-    """
-
-    def __init__(self, provider: str, api_key: str, base_url: str, model: str):
-        self.provider = provider
-        self.api_key = api_key
-        self.base_url = base_url.rstrip('/')
-        self.model = model
-        # Add model_info attribute for AutoGen compatibility
-        self.model_info = {
-            "function_calling": True,
-            "structured_output": True,
-            "json_output": True,
-            "vision": False,
-            "family": "openai"
-        }
-
-    async def create(self, messages, **kwargs):
-        """Create chat completion"""
-        # Rate limiting - shared across providers so a Gemini->Groq fallback
-        # within one call doesn't burst past either provider's free-tier
-        # quota.
-        global last_call_time
-        current_time = time.time()
-        if current_time - last_call_time < RATE_LIMIT_DELAY:
-            wait_time = RATE_LIMIT_DELAY - (current_time - last_call_time)
-            print(f"[{self.provider}] Rate limiting: waiting {wait_time:.1f} seconds...")
-            await asyncio.sleep(wait_time)
-
-        last_call_time = time.time()
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-
-        # Convert AutoGen messages to OpenAI format
-        openai_messages = []
-        for msg in messages:
-            if isinstance(msg, dict):
-                openai_messages.append(msg)
-            elif hasattr(msg, 'content'):
-                openai_messages.append({
-                    "role": "user" if not hasattr(msg, 'source') or msg.source == "user" else "assistant",
-                    "content": msg.content
-                })
-            else:
-                openai_messages.append({
-                    "role": "user",
-                    "content": str(msg)
-                })
-
-        if not openai_messages:
-            openai_messages = [{"role": "user", "content": "Please analyze the data."}]
-
-        data = {
-            "model": self.model,
-            "messages": openai_messages,
-            "max_tokens": kwargs.get('max_tokens', 8192),
-            "temperature": kwargs.get('temperature', 0.7)
-        }
-
-        response = requests.post(
-            f"{self.base_url}/chat/completions",
-            headers=headers,
-            json=data,
-            timeout=60,
-        )
-
-        if response.status_code != 200:
-            raise RuntimeError(f"{self.provider} API error: {response.status_code} - {response.text}")
-
-        result = response.json()
-        print(f"[{self.provider}] Raw response: {str(result)[:500]}...")
-
-        try:
-            from autogen_ext.models.openai._openai_client import ChatCompletion
-        except ImportError:
-            class ChatCompletion:
-                def __init__(self, choices, created, id, model, object, usage):
-                    self.choices = choices
-                    self.created = created
-                    self.id = id
-                    self.model = model
-                    self.object = object
-                    self.usage = usage
-
-        choice = result.get('choices', [{}])[0]
-        message = choice.get('message', {})
-        content = message.get('content', '')
-
-        print(f"[{self.provider}] Extracted content: {content[:200]}...")
-
-        return ChatCompletion(
-            choices=[choice] if content else [{"message": {"content": "No response generated", "role": "assistant"}}],
-            created=result.get('created'),
-            id=result.get('id'),
-            model=result.get('model'),
-            object=result.get('object'),
-            usage=result.get('usage', {})
-        )
-
-    async def close(self):
-        pass
-
-
-def create_gemini_model_client(model: Optional[str] = None) -> OpenAICompatibleClient:
-    """Create a Gemini client via its OpenAI-compatible endpoint."""
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        raise RuntimeError("GOOGLE_API_KEY environment variable must be set")
-
-    return OpenAICompatibleClient(
-        provider="Gemini",
-        api_key=api_key,
-        base_url="https://generativelanguage.googleapis.com/v1beta/openai",
-        model=model or os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
-    )
-
-
-def create_groq_model_client(model: Optional[str] = None) -> OpenAICompatibleClient:
-    """Create a Groq client via its OpenAI-compatible endpoint."""
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        raise RuntimeError("GROQ_API_KEY environment variable must be set")
-
-    return OpenAICompatibleClient(
-        provider="Groq",
-        api_key=api_key,
-        base_url="https://api.groq.com/openai/v1",
-        model=model or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
-    )
+# LLM client (Gemini primary, Groq fallback) now lives in llm_client.py --
+# it has no AutoGen dependency, so agents/finance_helpers.py can import it
+# too without pulling in the full autogen-agentchat/autogen-ext stack.
+from llm_client import create_gemini_model_client, create_groq_model_client
 
 
 async def run_autogen_mcp_task(

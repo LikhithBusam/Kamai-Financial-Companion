@@ -1,11 +1,14 @@
 """
-FastAPI Backend for Spare Backend
-Frontend (Windows) ↔ Backend (WSL) HTTP Connection
+FastAPI Backend for the Kamai agent pipeline.
 
 This backend:
-1. Receives user_id from frontend login
-2. Triggers all 9 agents for analysis
-3. Agents push results to database via MCP
+1. Receives a verified user_id from the frontend's Supabase Auth session
+2. Triggers 9 agents for analysis (context_agent, knowledge_agent, and
+   pattern_agent were removed -- see agents/finance_helpers.py and
+   CLAUDE.md's Phase 1 notes for why)
+3. Agents compute real numbers from real transaction/profile data and write
+   directly to Supabase (see backend/agents/finance_helpers.py) -- the LLM
+   is used only for short narrative text, not for the numbers themselves
 4. Returns status to frontend
 5. Frontend fetches results directly from database
 """
@@ -30,18 +33,15 @@ from auth import get_current_user_id
 sys.path.append(os.path.join(os.path.dirname(__file__), 'agents'))
 
 # Import all agents
-from pattern_agent import PatternRecognitionAgent
 from budget_agent import BudgetAnalysisAgent
-from context_agent import ContextIntelligenceAgent
 from volatility_agent import VolatilityForecasterAgent
-from knowledge_agent import KnowledgeIntegrationAgent
 from tax_agent import TaxComplianceAgent
-from recommendation_agent import RecommendationAgent
 from risk_agent import RiskAssessmentAgent
-from action_agent import ActionExecutionAgent
 from savings_investment_agent import SavingsInvestmentAgent
 from bill_payment_agent import BillPaymentAgent
 from goals_agent import FinancialGoalsAgent
+from recommendation_agent import RecommendationAgent
+from action_agent import ActionExecutionAgent
 
 # Initialize FastAPI
 app = FastAPI(
@@ -85,23 +85,27 @@ analysis_status: Dict[str, Dict[str, Any]] = {}
 
 
 class AgentOrchestrator:
-    """Orchestrates all 9 agents for a user"""
+    """
+    Orchestrates the 9 agents for a user, in an order that matters now:
+    budget/volatility/tax/risk/savings/bills/goals all compute from real
+    transaction data independently, but recommendation_agent and
+    action_agent read those agents' freshly-written rows (risk_assessments,
+    budgets, savings_goals, tax_records, bills) to ground their output in
+    real numbers -- so they must run last.
+    """
 
     def __init__(self, mcp_servers: str = ".mcp.json"):
         self.mcp_servers = mcp_servers
         self.agents = {
-            "pattern": PatternRecognitionAgent(mcp_servers),
             "budget": BudgetAnalysisAgent(mcp_servers),
-            "context": ContextIntelligenceAgent(mcp_servers),
             "volatility": VolatilityForecasterAgent(mcp_servers),
-            "knowledge": KnowledgeIntegrationAgent(mcp_servers),
             "tax": TaxComplianceAgent(mcp_servers),
-            "recommendation": RecommendationAgent(mcp_servers),
             "risk": RiskAssessmentAgent(mcp_servers),
-            "action": ActionExecutionAgent(mcp_servers),
             "savings": SavingsInvestmentAgent(mcp_servers),
             "bills": BillPaymentAgent(mcp_servers),
-            "goals": FinancialGoalsAgent(mcp_servers)
+            "goals": FinancialGoalsAgent(mcp_servers),
+            "recommendation": RecommendationAgent(mcp_servers),
+            "action": ActionExecutionAgent(mcp_servers),
         }
 
     async def run_all_agents(self, user_id: str) -> Dict[str, Any]:
@@ -121,27 +125,24 @@ class AgentOrchestrator:
         analysis_status[user_id] = {
             "status": "in_progress",
             "agents_completed": 0,
-            "total_agents": 12,
+            "total_agents": 9,
             "last_updated": datetime.now().isoformat()
         }
 
         agent_names = [
-            ("pattern", "Pattern Recognition"),
-            ("context", "Context Intelligence"),
-            ("volatility", "Volatility Forecaster"),
             ("budget", "Budget Analysis"),
-            ("knowledge", "Knowledge Integration"),
+            ("volatility", "Volatility Forecaster"),
             ("tax", "Tax & Compliance"),
             ("risk", "Risk Assessment"),
-            ("recommendation", "Recommendation Engine"),
-            ("action", "Action Execution"),
             ("savings", "Savings & Investment"),
             ("bills", "Bill Payment"),
-            ("goals", "Financial Goals")
+            ("goals", "Financial Goals"),
+            ("recommendation", "Recommendation Engine"),
+            ("action", "Action Execution"),
         ]
 
         for idx, (agent_key, agent_name) in enumerate(agent_names, 1):
-            print(f"\n[{idx}/12] Running {agent_name} Agent...")
+            print(f"\n[{idx}/9] Running {agent_name} Agent...")
 
             try:
                 result = await self.agents[agent_key].analyze_user(user_id)
@@ -187,7 +188,7 @@ async def root():
         "service": "Agente AI - Spare Backend",
         "status": "running",
         "version": "1.0.0",
-        "agents": 12
+        "agents": 9
     }
 
 
@@ -326,20 +327,17 @@ async def health_check():
         "status": "healthy",
         "service": "Agente AI Spare Backend",
         "agents": {
-            "pattern": "ready",
             "budget": "ready",
-            "context": "ready",
             "volatility": "ready",
-            "knowledge": "ready",
             "tax": "ready",
-            "recommendation": "ready",
             "risk": "ready",
-            "action": "ready",
             "savings": "ready",
             "bills": "ready",
-            "goals": "ready"
+            "goals": "ready",
+            "recommendation": "ready",
+            "action": "ready",
         },
-        "database": "mcp_connected",
+        "database": "supabase_rest",
         "timestamp": datetime.now().isoformat()
     }
 

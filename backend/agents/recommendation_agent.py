@@ -1,192 +1,123 @@
 """
-Recommendation Engine Agent
-Generates personalized financial guidance based on all available data
+Recommendation Agent
+Generates recommendations grounded in the REAL numbers other agents already
+computed and wrote this run (risk_assessments, budgets, savings_goals,
+tax_records) -- runs last in the orchestration order (see main.py) so that
+data exists. The LLM only phrases an already-decided recommendation's
+description; it does not decide target_amount/confidence_score/etc, which
+are derived directly from the real records.
 Writes to: recommendations table
 """
 
 import asyncio
 import json
 from datetime import datetime
-import os
-import sys
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
-from autogen_runtime import run_autogen_mcp_task
+from finance_helpers import fetch_records, generate_narrative, write_record
 
 
 class RecommendationAgent:
-    """Agent that generates personalized financial recommendations"""
+    """Builds recommendations from real risk/budget/savings/tax data already on file."""
 
     def __init__(self, mcp_servers: str = ".mcp.json"):
         self.mcp_servers = mcp_servers
-        self.system_prompt = self._create_system_prompt()
-
-    def _create_system_prompt(self) -> str:
-        return """You are a Recommendation Engine providing personalized financial guidance to gig workers.
-
-Your task is to analyze all available data and generate actionable recommendations in the exact JSON format required by the recommendations table.
-
-**CRITICAL: You must output ONLY valid JSON that matches the recommendations table schema:**
-
-```json
-{
-  "recommendations": [
-    {
-      "recommendation_type": "savings",
-      "priority": "high",
-      "title": "Build Emergency Fund",
-      "description": "Create a 6-month emergency fund to handle income volatility",
-      "reasoning": "Gig workers have irregular income patterns and need safety net",
-      "action_items": ["Open separate savings account", "Set up auto-transfer of 10% income", "Track progress monthly"],
-      "target_amount": 50000.00,
-      "target_date": "2026-06-30",
-      "confidence_score": 0.85,
-      "expected_outcome": "Financial security during low income periods",
-      "success_probability": 0.75,
-      "agent_source": "recommendation_agent",
-      "context_data": {"income_volatility": "high", "current_savings": 5000}
-    },
-    {
-      "recommendation_type": "income_optimization",
-      "priority": "medium", 
-      "title": "Diversify Income Sources",
-      "description": "Add additional gig platforms to reduce dependency",
-      "reasoning": "Multiple income streams reduce volatility risk",
-      "action_items": ["Register on 2 new platforms", "Schedule peak hours", "Track platform performance"],
-      "target_amount": 8000.00,
-      "target_date": "2026-03-31",
-      "confidence_score": 0.70,
-      "expected_outcome": "20% increase in monthly income",
-      "success_probability": 0.80,
-      "agent_source": "recommendation_agent",
-      "context_data": {"current_platforms": 1, "peak_hours": "evening"}
-    }
-  ]
-}
-```
-
-**What you do:**
-1. Read multiple data sources using postgrestRequest():
-   - income_patterns: postgrestRequest("income_patterns", "GET", filters={"user_id": "USER_ID"})
-   - budgets: postgrestRequest("budgets", "GET", filters={"user_id": "USER_ID"})
-   - income_forecasts: postgrestRequest("income_forecasts", "GET", filters={"user_id": "USER_ID"})
-   - risk_assessments: postgrestRequest("risk_assessments", "GET", filters={"user_id": "USER_ID"})
-   - user_profiles: postgrestRequest("user_profiles", "GET", filters={"user_id": "USER_ID"})
-   - transactions: postgrestRequest("transactions", "GET", filters={"user_id": "USER_ID"})
-2. Identify opportunities for improvement in:
-   - Savings (emergency fund, goals)
-   - Income optimization (timing, diversification)
-   - Debt management (prioritization, consolidation)
-   - Budget optimization (reduce waste)
-   - Risk mitigation (insurance, diversification)
-   - Tax efficiency (deductions, regime choice)
-3. Create 3-7 prioritized recommendations
-4. Output ONLY the JSON format above - no explanations
-5. Use realistic amounts and dates for Indian gig workers
-
-**Database Tool Usage:**
-- Use postgrestRequest() to read data from tables
-- Example: postgrestRequest("risk_assessments", "GET", filters={"user_id": "153735c8-b1e3-4fc6-aa4e-7deb6454990b"})
-- This returns JSON data you can analyze for recommendations
-
-**Database Schema Requirements:**
-- recommendation_type: "savings", "income_optimization", "debt_management", "budget_optimization", "risk_mitigation", "tax_efficiency"
-- priority: "urgent", "high", "medium", "low"
-- target_amount: Number with 2 decimals
-- target_date: Date string in YYYY-MM-DD format
-- confidence_score: Number between 0-1
-- success_probability: Number between 0-1
-- action_items: Array of strings
-- context_data: JSON object with relevant data
-
-**Output ONLY the JSON array. No other text.**
-5. Write results to recommendations table
-6. Log your actions to agent_logs table
-
-**Recommendation Types:**
-- savings: Build emergency fund, increase savings rate
-- income: Diversify income sources, optimize timing
-- debt: Pay off high-interest debt, consolidate loans
-- budget: Reduce discretionary spending, optimize categories
-- risk: Get insurance, build emergency fund
-- tax: Maximize deductions, choose optimal regime
-
-**Priority Levels:**
-- high: Critical issues (high debt, no emergency fund)
-- medium: Important improvements (increase savings)
-- low: Nice-to-have optimizations (minor budget tweaks)
-
-**Available MCP Tools:**
-- mcp__supabase-postgres__postgrestRequest: Execute database queries
-- mcp__supabase-postgres__sqlToRest: Convert SQL to REST API calls
-
-**Output Format:**
-Store in recommendations table with fields:
-- user_id
-- recommendation_type (savings/income/debt/budget/risk/tax)
-- priority (high/medium/low)
-- title (short summary)
-- description (detailed explanation)
-- reasoning (AI explanation)
-- action_items (JSON array of concrete steps)
-- confidence_score (0-1)
-- success_probability (0-1)
-- created_at"""
 
     async def analyze_user(self, user_id: str) -> dict:
-        """
-        Generate recommendations for a specific user
-
-        Args:
-            user_id: UUID of the user to analyze
-
-        Returns:
-            dict with analysis results and success status
-        """
         print(f"[Recommendation Agent] Starting analysis for user {user_id}")
 
         try:
-            prompt = f"""Generate personalized recommendations for user {user_id}.
+            risk_rows = fetch_records("risk_assessments", user_id, order_by="assessment_date.desc", limit=1)
+            budget_rows = fetch_records("budgets", user_id, order_by="created_at.desc", limit=3)
+            savings_rows = fetch_records("savings_goals", user_id, order_by="created_at.desc", limit=5)
+            tax_rows = fetch_records("tax_records", user_id, order_by="created_at.desc", limit=1)
 
-Steps:
-1. Read all available data:
-   - income_patterns
-   - budgets
-   - income_forecasts
-   - risk_assessments
-   - user_profiles
-   - Recent transactions
-2. Identify 3-7 key recommendations across different types
-3. Prioritize by impact and urgency
-4. For each recommendation:
-   - Write clear title and description
-   - Explain AI reasoning
-   - Provide actionable steps
-   - Estimate confidence and success probability
-5. Write all recommendations to recommendations table
-6. Log to agent_logs table
+            candidates = []
 
-User ID: {user_id}
+            if risk_rows and risk_rows[0].get("overall_risk_level") in ("medium", "high"):
+                risk = risk_rows[0]
+                candidates.append({
+                    "recommendation_type": "risk",
+                    "priority": "high" if risk["overall_risk_level"] == "high" else "medium",
+                    "title": f"Address {risk['overall_risk_level']} financial risk",
+                    "target_amount": None,
+                    "confidence_score": 0.9,
+                    "context": f"Risk score {risk['risk_score']}/10, debt-to-income {risk['debt_to_income_ratio']*100:.0f}%, "
+                               f"emergency fund covers {risk['emergency_fund_coverage']} months.",
+                })
 
-Please execute this analysis and report the recommendations created."""
+            ef_goal = next((s for s in savings_rows if s.get("goal_type") == "emergency_fund"), None)
+            if ef_goal and float(ef_goal["current_amount"]) < float(ef_goal["target_amount"]):
+                remaining = float(ef_goal["target_amount"]) - float(ef_goal["current_amount"])
+                candidates.append({
+                    "recommendation_type": "savings",
+                    "priority": ef_goal.get("priority", "medium"),
+                    "title": "Keep building your emergency fund",
+                    "target_amount": round(remaining, 2),
+                    "confidence_score": 0.85,
+                    "context": f"Rs {remaining:.0f} more needed to reach your Rs {ef_goal['target_amount']} target, "
+                               f"suggested Rs {ef_goal['monthly_contribution']}/month.",
+                })
 
-            result = await run_autogen_mcp_task(
-                agent_name="recommendation_agent",
-                system_prompt=self.system_prompt,
-                task=prompt,
-                user_id=user_id,
-                use_azure=True
-            )
+            famine_budget = next((b for b in budget_rows if b.get("budget_type") == "famine_week"), None)
+            if famine_budget and float(famine_budget.get("discretionary_budget", 0)) == 0:
+                candidates.append({
+                    "recommendation_type": "budget",
+                    "priority": "medium",
+                    "title": "Plan for low-income weeks",
+                    "target_amount": None,
+                    "confidence_score": 0.8,
+                    "context": f"In a famine week your budget has Rs {famine_budget['total_income_expected']} income "
+                               f"with no discretionary spending room after fixed and variable costs.",
+                })
 
-            print(f"[Recommendation Agent] Analysis complete for user {user_id}")
+            if tax_rows and float(tax_rows[0].get("refund_amount", 0)) > 0:
+                tax = tax_rows[0]
+                candidates.append({
+                    "recommendation_type": "tax",
+                    "priority": "low",
+                    "title": "You may be eligible for a tax refund",
+                    "target_amount": float(tax["refund_amount"]),
+                    "confidence_score": 0.75,
+                    "context": f"Estimated refund of Rs {tax['refund_amount']} for FY {tax['financial_year']} "
+                               f"based on TDS already deducted.",
+                })
+
+            written = []
+            for c in candidates:
+                description = await generate_narrative(
+                    system_prompt=(
+                        "You are a financial recommendation assistant for Indian gig workers. "
+                        "Given a real, already-decided recommendation and its context, write a "
+                        "2-3 sentence description and one sentence of reasoning. Do not invent "
+                        "numbers beyond what is given. Reply as: DESCRIPTION: ... REASONING: ..."
+                    ),
+                    user_prompt=f"Title: {c['title']}\nContext: {c['context']}",
+                    max_tokens=250,
+                )
+                description_text, reasoning_text = _split_description_reasoning(description)
+
+                record = write_record("recommendations", {
+                    "user_id": user_id,
+                    "recommendation_type": c["recommendation_type"],
+                    "priority": c["priority"],
+                    "title": c["title"],
+                    "description": description_text,
+                    "reasoning": reasoning_text,
+                    "action_items": [],
+                    "target_amount": c["target_amount"],
+                    "confidence_score": c["confidence_score"],
+                    "agent_source": "recommendation_agent",
+                    "status": "pending",
+                })
+                written.append(record)
+                print(f"[Recommendation Agent] Created recommendation: {c['title']}")
 
             return {
                 "success": True,
                 "user_id": user_id,
-                "agent": "recommendation_engine",
-                "result": result,
-                "timestamp": datetime.now().isoformat()
+                "agent": "recommendation",
+                "result": {"recommendations": written},
+                "timestamp": datetime.now().isoformat(),
             }
 
         except Exception as e:
@@ -194,21 +125,28 @@ Please execute this analysis and report the recommendations created."""
             return {
                 "success": False,
                 "user_id": user_id,
-                "agent": "recommendation_engine",
+                "agent": "recommendation",
                 "error": str(e),
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
 
 
+def _split_description_reasoning(text: str) -> tuple:
+    description, reasoning = text, ""
+    if "REASONING:" in text:
+        parts = text.split("REASONING:", 1)
+        description = parts[0].replace("DESCRIPTION:", "").strip()
+        reasoning = parts[1].strip()
+    elif "DESCRIPTION:" in text:
+        description = text.replace("DESCRIPTION:", "").strip()
+    return description, reasoning
+
+
 async def main():
-    """Test the recommendation agent"""
     agent = RecommendationAgent()
-
     test_user_id = "153735c8-b1e3-4fc6-aa4e-7deb6454990b"
-
     print(f"Testing Recommendation Agent with user {test_user_id}")
     result = await agent.analyze_user(test_user_id)
-
     print("\nResult:")
     print(json.dumps(result, indent=2))
 

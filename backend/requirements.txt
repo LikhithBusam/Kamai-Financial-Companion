@@ -1,9 +1,14 @@
-# AutoGen
+# AutoGen -- NOT required to run backend/main.py itself. None of the 9 live
+# agents (see agents/finance_helpers.py) import autogen_runtime.py anymore;
+# they compute real numbers directly and only call llm_client.py (plain
+# `requests`) for narrative text. Kept here only because the orphaned,
+# not-wired-into-main.py agents/financial_agent.py and agents/monitor.py
+# still import autogen_runtime.py. If those get removed too, this can go.
 autogen-agentchat
 autogen-ext[openai,mcp]
 
-# HTTP client for Gemini/Groq (OpenAI-compatible REST endpoints) and the
-# Supabase REST calls in autogen_runtime.py
+# HTTP client for Gemini/Groq (OpenAI-compatible REST endpoints, see
+# llm_client.py) and all Supabase REST calls (see agents/finance_helpers.py)
 requests
 
 # Configuration

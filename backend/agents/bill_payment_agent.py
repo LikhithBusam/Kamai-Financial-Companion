@@ -1,263 +1,107 @@
 """
-Automated Bill Payment Decisions Agent
-Analyzes bills, prioritizes payments, and creates payment schedules
-Writes to: bills, bill_payment_schedule tables
+Bill Payment Agent
+Bills are primarily user-managed via the Actions page UI (db.bills.* in the
+frontend). This agent's real value-add: detect genuinely recurring expense
+patterns in real transactions (same category + similar amount appearing 2+
+times) and suggest them as bills, skipping anything that already has a
+matching bill entry -- not inventing bill amounts from nothing.
+Writes to: bills table
 """
 
 import asyncio
 import json
-from datetime import datetime
-import os
-import sys
+import statistics
+from collections import defaultdict
+from datetime import datetime, timedelta
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from finance_helpers import fetch_transactions, fetch_records, write_record
 
-from autogen_runtime import run_autogen_mcp_task
+MIN_OCCURRENCES = 2
+AMOUNT_TOLERANCE = 0.15  # 15% variation still counts as "the same" recurring bill
 
 
 class BillPaymentAgent:
-    """Agent that analyzes and automates bill payment decisions for gig workers"""
+    """Detects recurring expenses from real transactions and suggests them as bills."""
 
     def __init__(self, mcp_servers: str = ".mcp.json"):
         self.mcp_servers = mcp_servers
-        self.system_prompt = self._create_system_prompt()
-
-    def _create_system_prompt(self) -> str:
-        return """You are an Automated Bill Payment Decisions Agent for gig workers in India.
-
-Your task is to analyze bills, prioritize payments, and create optimal payment schedules based on income patterns.
-
-**CRITICAL: You must output ONLY valid JSON that matches the bill_payments table schema:**
-
-```json
-{
-  "bill_analysis": {
-    "total_monthly_bills": 12500.00,
-    "bills": [
-      {
-        "bill_name": "House Rent",
-        "bill_type": "rent",
-        "amount": 8000.00,
-        "due_date": "2025-01-05",
-        "frequency": "monthly",
-        "priority": "critical",
-        "auto_pay_recommended": false,
-        "payment_method": "bank_transfer",
-        "late_fee": 500.00,
-        "grace_period_days": 5,
-        "status": "pending"
-      },
-      {
-        "bill_name": "Mobile Recharge",
-        "bill_type": "utility",
-        "amount": 299.00,
-        "due_date": "2025-01-10",
-        "frequency": "monthly",
-        "priority": "high",
-        "auto_pay_recommended": true,
-        "payment_method": "upi",
-        "late_fee": 0,
-        "grace_period_days": 0,
-        "status": "pending"
-      },
-      {
-        "bill_name": "Electricity Bill",
-        "bill_type": "utility",
-        "amount": 1200.00,
-        "due_date": "2025-01-15",
-        "frequency": "monthly",
-        "priority": "high",
-        "auto_pay_recommended": true,
-        "payment_method": "upi",
-        "late_fee": 50.00,
-        "grace_period_days": 7,
-        "status": "pending"
-      },
-      {
-        "bill_name": "Bike EMI",
-        "bill_type": "emi",
-        "amount": 3000.00,
-        "due_date": "2025-01-07",
-        "frequency": "monthly",
-        "priority": "critical",
-        "auto_pay_recommended": true,
-        "payment_method": "auto_debit",
-        "late_fee": 200.00,
-        "grace_period_days": 3,
-        "remaining_emis": 18,
-        "status": "pending"
-      }
-    ],
-    "payment_schedule": [
-      {
-        "pay_date": "2025-01-05",
-        "bills_to_pay": ["House Rent"],
-        "total_amount": 8000.00,
-        "income_source": "Expected Swiggy earnings",
-        "confidence": 0.85
-      },
-      {
-        "pay_date": "2025-01-07",
-        "bills_to_pay": ["Bike EMI"],
-        "total_amount": 3000.00,
-        "income_source": "Expected Zomato earnings",
-        "confidence": 0.90
-      },
-      {
-        "pay_date": "2025-01-10",
-        "bills_to_pay": ["Mobile Recharge", "Electricity Bill"],
-        "total_amount": 1499.00,
-        "income_source": "Weekend earnings",
-        "confidence": 0.80
-      }
-    ],
-    "recommendations": [
-      {
-        "type": "auto_pay_setup",
-        "bill": "Bike EMI",
-        "reason": "Critical payment - missing affects credit score",
-        "action": "Set up auto-debit from bank account"
-      },
-      {
-        "type": "payment_timing",
-        "bill": "Electricity Bill",
-        "reason": "Has 7-day grace period",
-        "action": "Can delay if income is low in first week"
-      },
-      {
-        "type": "cost_saving",
-        "bill": "Mobile Recharge",
-        "reason": "Annual plan saves 15%",
-        "action": "Consider switching to annual prepaid plan"
-      }
-    ],
-    "alerts": [
-      {
-        "alert_type": "upcoming_due",
-        "bill": "House Rent",
-        "message": "Rent due in 3 days - ensure Rs 8000 available",
-        "severity": "high"
-      }
-    ],
-    "auto_pay_savings": 750.00,
-    "late_fee_risk": 750.00,
-    "confidence_score": 0.78
-  }
-}
-```
-
-**What you do:**
-1. Read transactions to identify recurring expenses (bills)
-2. Detect bill patterns: rent, EMIs, utilities, subscriptions
-3. Read income_patterns to understand earning schedule
-4. Match bill due dates with expected income days
-5. Prioritize bills by:
-   - Critical: EMIs, rent (affects credit/housing)
-   - High: Utilities (disconnection risk)
-   - Medium: Subscriptions
-   - Low: Optional services
-6. Create payment schedule aligned with income
-7. Recommend auto-pay for predictable bills
-8. Calculate late fee risk and potential savings
-9. Output ONLY the JSON format above - no explanations
-
-**Bill Types:**
-- rent: House/shop rent
-- emi: Loan EMIs (bike, phone, personal)
-- utility: Electricity, water, gas
-- telecom: Mobile, internet, DTH
-- insurance: Health, vehicle, life
-- subscription: OTT, apps, memberships
-- tax: GST, income tax advance
-
-**Priority Levels:**
-- critical: Missing affects credit score or housing
-- high: Service disconnection risk
-- medium: Convenience impact
-- low: Optional, can skip if needed
-
-**Auto-Pay Recommendations:**
-- Recommend for: Fixed amount bills, EMIs
-- Avoid for: Variable bills, uncertain income periods
-- Consider income volatility before recommending
-
-**Database Schema Requirements:**
-- amount/late_fee: Numbers with 2 decimals
-- due_date/pay_date: Date strings YYYY-MM-DD
-- frequency: "monthly", "quarterly", "annual", "one_time"
-- priority: "critical", "high", "medium", "low"
-- status: "pending", "paid", "overdue", "scheduled"
-- confidence: Number between 0-1
-
-**Output ONLY the JSON object. No other text.**"""
 
     async def analyze_user(self, user_id: str) -> dict:
-        """
-        Analyze bills and create payment schedule for a specific user
-
-        Args:
-            user_id: UUID of the user to analyze
-
-        Returns:
-            dict with analysis results and success status
-        """
-        print(f"[Bill Payment Agent] Starting analysis for user {user_id}")
+        print(f"[Bill Agent] Starting analysis for user {user_id}")
 
         try:
-            prompt = f"""Analyze bills and create payment schedule for user {user_id}.
+            transactions = fetch_transactions(user_id, days=90)
+            existing_bills = fetch_records("bills", user_id)
+            existing_names = {b["bill_name"].lower() for b in existing_bills}
 
-Steps:
-1. Read transactions to identify recurring expenses (rent, EMIs, utilities)
-2. Detect bill patterns from transaction history
-3. Read income_patterns to understand when user earns money
-4. Create optimal payment schedule matching income to bills
-5. Identify which bills should have auto-pay
-6. Calculate late fee risks
-7. Generate payment recommendations
-8. Output structured JSON
+            by_category: dict = defaultdict(list)
+            for t in transactions:
+                if t.get("transaction_type") == "expense":
+                    by_category[t.get("category") or "Other"].append(t)
 
-User ID: {user_id}
+            created = []
+            for category, txns in by_category.items():
+                if len(txns) < MIN_OCCURRENCES:
+                    continue
 
-Please analyze and create a comprehensive bill payment plan."""
+                amounts = sorted(float(t["amount"]) for t in txns)
+                median = amounts[len(amounts) // 2]
+                close_amounts = [a for a in amounts if abs(a - median) <= median * AMOUNT_TOLERANCE]
+                if len(close_amounts) < MIN_OCCURRENCES:
+                    continue  # amounts vary too much to be a real recurring bill
 
-            result = await run_autogen_mcp_task(
-                agent_name="bill_payment_agent",
-                system_prompt=self.system_prompt,
-                task=prompt,
-                user_id=user_id,
-                use_azure=True
-            )
+                bill_name = f"{category} (recurring)"
+                if bill_name.lower() in existing_names:
+                    continue
 
-            print(f"[Bill Payment Agent] Analysis complete for user {user_id}")
+                # Estimate next due date: one interval after the most recent occurrence
+                dates = sorted(t["transaction_date"] for t in txns)
+                last_date = datetime.fromisoformat(dates[-1])
+                if len(dates) >= 2:
+                    interval_days = (datetime.fromisoformat(dates[-1]) - datetime.fromisoformat(dates[-2])).days
+                else:
+                    interval_days = 30
+                due_date = (last_date + timedelta(days=max(interval_days, 7))).date().isoformat()
+
+                bill = write_record("bills", {
+                    "user_id": user_id,
+                    "bill_name": bill_name,
+                    "bill_type": "utility" if category.lower() in ("utilities", "electricity", "water", "internet") else "other",
+                    "amount": round(statistics.median(close_amounts), 2),
+                    "due_date": due_date,
+                    "frequency": "monthly" if 25 <= interval_days <= 35 else "weekly" if 5 <= interval_days <= 9 else "irregular",
+                    "priority": "medium",
+                    "auto_pay_recommended": False,
+                    "payment_method": "upi",
+                    "status": "pending",
+                })
+                created.append(bill)
+                print(f"[Bill Agent] Detected recurring bill: {bill_name} (~Rs {bill['amount']})")
 
             return {
                 "success": True,
                 "user_id": user_id,
                 "agent": "bill_payment",
-                "result": result,
-                "timestamp": datetime.now().isoformat()
+                "result": {"bills_detected": created},
+                "timestamp": datetime.now().isoformat(),
             }
 
         except Exception as e:
-            print(f"[Bill Payment Agent] Error analyzing user {user_id}: {str(e)}")
+            print(f"[Bill Agent] Error analyzing user {user_id}: {str(e)}")
             return {
                 "success": False,
                 "user_id": user_id,
                 "agent": "bill_payment",
                 "error": str(e),
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
 
 
 async def main():
-    """Test the bill payment agent"""
     agent = BillPaymentAgent()
-
     test_user_id = "153735c8-b1e3-4fc6-aa4e-7deb6454990b"
-
     print(f"Testing Bill Payment Agent with user {test_user_id}")
     result = await agent.analyze_user(test_user_id)
-
     print("\nResult:")
     print(json.dumps(result, indent=2))
 
