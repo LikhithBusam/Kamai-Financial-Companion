@@ -7,10 +7,10 @@ KAMAI (Lakshmi Raave Maa Intiki) is a comprehensive AI-powered financial managem
 This unified web application combines a professional landing page with a full-featured financial management platform, offering:
 
 - **Professional Landing Experience**: Clean, corporate design showcasing KAMAI's capabilities
-- **AI-Powered Financial Intelligence**: Multi-agent system for personalized financial guidance
-- **Offline-First Architecture**: 100% privacy protection with local-first data processing
-- **Government Scheme Integration**: Access to 200+ opportunities and benefits
+- **AI-Powered Financial Intelligence**: 9-agent backend computes real numbers from real transaction data; the LLM only phrases narrative text
 - **Real-time Analytics**: Comprehensive financial tracking and forecasting
+
+> Government scheme matching is planned but not yet populated with real scheme data (`government_schemes` table is currently empty). Offline-first/local-first processing is not implemented — this is a standard online web app backed by Supabase.
 
 ## 🚀 Getting Started
 
@@ -89,26 +89,3 @@ Copyright (c) 2024 KAMAI Team. All rights reserved.
 ---
 
 **KAMAI** - Empowering India's gig economy with intelligent financial management.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/4241defb-2066-4831-833b-15286023e7d2) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
