@@ -6,6 +6,7 @@ llm_client.generate_narrative, re-exported below) is only used for turning
 already-computed real numbers into a short narrative/explanation string.
 """
 
+import logging
 import os
 import statistics
 import sys
@@ -13,6 +14,16 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import requests
+
+# Every agent imports this module, so configuring the root logger here (once,
+# idempotently -- basicConfig no-ops if a handler is already set) covers the
+# whole live pipeline without touching each of the 9 agent files. Replaces
+# plain print() calls with real levels/timestamps so output can be redirected
+# to a file or log aggregator in production instead of going only to stdout.
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 

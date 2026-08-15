@@ -18,7 +18,7 @@ export const flowchartData: Record<string, FlowchartData> = {
     
     Start --> Phase0["📱 PHASE 0<br/>Offline-First<br/>100% Works Offline"]
     
-    Phase0 --> Orchestrator["🧠 Orchestrator<br/>Claude 4.5"]
+    Phase0 --> Orchestrator["🧠 Orchestrator<br/>Gemini 2.5 Flash + Groq"]
     
     Orchestrator --> Emergency{"🚨 Emergency?"}
     

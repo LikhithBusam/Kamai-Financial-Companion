@@ -28,8 +28,10 @@ python simple_api_server.py
 ```
 
 Then access:
-- API: http://localhost:8000
-- Docs: http://localhost:8000/docs
+- API: http://localhost:8001
+- Docs: http://localhost:8001/docs
+
+(Runs on 8001, not 8000 — `backend/main.py`, the live agent-analysis backend, owns port 8000.)
 
 ## How It Works
 

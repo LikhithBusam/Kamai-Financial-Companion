@@ -284,6 +284,26 @@ export const db = {
     logout: async () => {
       await supabase.auth.signOut();
     },
+
+    changePassword: async (phone_number: string, currentPassword: string, newPassword: string) => {
+      if (newPassword.length < 6) {
+        throw new Error('New password must be at least 6 characters');
+      }
+
+      // Supabase's updateUser() doesn't require re-proving the current
+      // password -- it trusts the existing session. Re-verify it explicitly
+      // via signInWithPassword first so "Current Password" isn't decorative.
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: shadowEmail(phone_number),
+        password: currentPassword,
+      });
+      if (verifyError) {
+        throw new Error('Current password is incorrect');
+      }
+
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+    },
   },
 
   // ========== USERS ==========
@@ -331,7 +351,7 @@ export const db = {
       return updated as User;
     },
 
-    getProfile: async (): Promise<UserProfile> => {
+    getProfile: async (): Promise<UserProfile | null> => {
       const userId = localStorage.getItem('user_id');
       if (!userId) throw new Error('Not authenticated');
 
@@ -341,8 +361,12 @@ export const db = {
     .eq('user_id', userId)
     .single();
 
-  if (error) throw error;
-      return data as UserProfile;
+      // PGRST116 = no row yet -- expected for a new user who hasn't saved a
+      // financial profile, not a real error (see riskAssessments.getLatest()
+      // and the other getLatest()-style methods in this file for the same
+      // pattern; this one was missing it).
+  if (error && error.code !== 'PGRST116') throw error;
+      return data as UserProfile | null;
     },
 
     updateProfile: async (data: Partial<UserProfile>): Promise<UserProfile> => {
@@ -1040,7 +1064,12 @@ export const db = {
       
       if (filters?.date_range === 'today') {
         const today = new Date().toISOString().split('T')[0];
-        query = query.eq('next_execution', today).or('next_execution.is.null');
+        // A single .eq() followed by .or() ANDs them together in PostgREST
+        // (next_execution = today AND next_execution IS NULL -- impossible),
+        // so this always returned zero rows regardless of real data. Both
+        // conditions need to be inside the same .or() to actually mean
+        // "today OR unset".
+        query = query.or(`next_execution.eq.${today},next_execution.is.null`);
       } else if (filters?.date_range === 'upcoming') {
         const today = new Date();
         const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -1110,6 +1139,31 @@ export const db = {
 
       if (error) throw error;
       return created;
+    },
+
+    // executed_actions' primary key is action_id, not id -- callers must
+    // pass the value read from that column.
+    updateStatus: async (actionId: string, updates: {
+      status?: string;
+      user_approved?: boolean;
+      approval_date?: string;
+      execution_date?: string;
+      reversal_requested?: boolean;
+      reversal_date?: string;
+    }) => {
+      const userId = localStorage.getItem('user_id');
+      if (!userId) throw new Error('Not authenticated');
+
+      const { data: updated, error } = await supabase
+        .from('executed_actions')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('action_id', actionId)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return updated;
     },
   },
 

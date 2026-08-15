@@ -10,6 +10,7 @@ Writes to: tax_records table
 
 import asyncio
 import json
+import logging
 from datetime import datetime
 
 from finance_helpers import (
@@ -19,6 +20,9 @@ from finance_helpers import (
     generate_narrative,
     write_record,
 )
+
+logger = logging.getLogger(__name__)
+
 
 def _current_financial_year() -> str:
     """Indian FY runs April-March, e.g. Aug 2026 -> "2026-27"."""
@@ -34,7 +38,7 @@ class TaxComplianceAgent:
         self.mcp_servers = mcp_servers
 
     async def analyze_user(self, user_id: str) -> dict:
-        print(f"[Tax Agent] Starting analysis for user {user_id}")
+        logger.info(f"[Tax Agent] Starting analysis for user {user_id}")
 
         try:
             # Full financial year of income, not the shorter 90-day window
@@ -78,8 +82,8 @@ class TaxComplianceAgent:
                 "filing_status": "not_filed",
             }
             written = write_record("tax_records", record)
-            print(f"[Tax Agent] Created tax record for FY {record['financial_year']}: "
-                  f"liability Rs {tax['total_tax_liability']}")
+            logger.info(f"[Tax Agent] Created tax record for FY {record['financial_year']}: "
+                        f"liability Rs {tax['total_tax_liability']}")
 
             return {
                 "success": True,
@@ -90,7 +94,7 @@ class TaxComplianceAgent:
             }
 
         except Exception as e:
-            print(f"[Tax Agent] Error analyzing user {user_id}: {str(e)}")
+            logger.error(f"[Tax Agent] Error analyzing user {user_id}: {str(e)}", exc_info=True)
             return {
                 "success": False,
                 "user_id": user_id,

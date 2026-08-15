@@ -13,24 +13,34 @@ This backend:
 5. Frontend fetches results directly from database
 """
 
+import logging
 import os
 import sys
-import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional
-from fastapi import Depends, FastAPI, HTTPException, BackgroundTasks
+from fastapi import Depends, FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 # Load environment variables from .env file
 load_dotenv()
 
-from auth import get_current_user_id
+from auth import get_current_user_id, get_user_id_for_rate_limit
 
 # Add agents directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'agents'))
+
+# finance_helpers configures the root logger on first import -- this logger
+# just needs the name, not to configure logging itself.
+logger = logging.getLogger(__name__)
+
+# Reused as-is for analysis_jobs (durable job state) -- no new DB-access
+# code needed, these already exist and are already used by every agent.
+from finance_helpers import fetch_records, write_record, update_record
 
 # Import all agents
 from budget_agent import BudgetAnalysisAgent
@@ -49,6 +59,12 @@ app = FastAPI(
     description="Background financial analysis service for gig workers",
     version="1.0.0"
 )
+
+# Per-user (not per-IP -- see auth.get_user_id_for_rate_limit) rate limiting
+# on the expensive analysis-trigger endpoints.
+limiter = Limiter(key_func=get_user_id_for_rate_limit)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS: defaults to the frontend's actual dev port (8080, see
 # frontend/vite.config.ts); production deployments must set
@@ -80,8 +96,32 @@ class StatusResponse(BaseModel):
     total_agents: int
     last_updated: str
 
-# In-memory status tracking (for MVP)
-analysis_status: Dict[str, Dict[str, Any]] = {}
+def _get_job(user_id: str) -> Optional[Dict[str, Any]]:
+    """Latest analysis_jobs row for a user, or None if they've never run one."""
+    rows = fetch_records("analysis_jobs", user_id, order_by="updated_at.desc", limit=1)
+    return rows[0] if rows else None
+
+
+def _start_job(user_id: str) -> Dict[str, Any]:
+    """
+    Resets (or creates) the one job row for this user to a fresh in_progress
+    state and returns it, synchronously, before the background task starts --
+    so a status poll right after /api/analyze returns sees real state
+    immediately, matching the old in-memory dict's behavior.
+    """
+    now = datetime.now().isoformat()
+    existing = _get_job(user_id)
+    fields = {
+        "status": "in_progress",
+        "agents_completed": 0,
+        "total_agents": 9,
+        "started_at": now,
+        "updated_at": now,
+        "error_message": None,
+    }
+    if existing:
+        return update_record("analysis_jobs", existing["id"], fields)
+    return write_record("analysis_jobs", {**fields, "user_id": user_id})
 
 
 class AgentOrchestrator:
@@ -111,22 +151,15 @@ class AgentOrchestrator:
     async def run_all_agents(self, user_id: str) -> Dict[str, Any]:
         """Run all 9 agents in sequence"""
 
-        print(f"\n{'='*60}")
-        print(f"Starting analysis for user {user_id}")
-        print(f"{'='*60}\n")
+        logger.info(f"Starting analysis for user {user_id}")
+
+        job = _get_job(user_id)
+        job_id = job["id"] if job else None
 
         results = {
             "user_id": user_id,
             "analysis_started": datetime.now().isoformat(),
             "agents": {}
-        }
-
-        # Update status
-        analysis_status[user_id] = {
-            "status": "in_progress",
-            "agents_completed": 0,
-            "total_agents": 9,
-            "last_updated": datetime.now().isoformat()
         }
 
         agent_names = [
@@ -141,38 +174,50 @@ class AgentOrchestrator:
             ("action", "Action Execution"),
         ]
 
-        for idx, (agent_key, agent_name) in enumerate(agent_names, 1):
-            print(f"\n[{idx}/9] Running {agent_name} Agent...")
+        try:
+            for idx, (agent_key, agent_name) in enumerate(agent_names, 1):
+                logger.info(f"[{idx}/9] Running {agent_name} Agent...")
 
-            try:
-                result = await self.agents[agent_key].analyze_user(user_id)
-                results["agents"][agent_key] = result
+                try:
+                    result = await self.agents[agent_key].analyze_user(user_id)
+                    results["agents"][agent_key] = result
+                    logger.info(f"{agent_name} completed")
+                except Exception as e:
+                    logger.error(f"{agent_name} failed: {str(e)}", exc_info=True)
+                    results["agents"][agent_key] = {
+                        "success": False,
+                        "error": str(e)
+                    }
 
-                # Update status
-                analysis_status[user_id]["agents_completed"] = idx
-                analysis_status[user_id]["last_updated"] = datetime.now().isoformat()
+                if job_id:
+                    update_record("analysis_jobs", job_id, {
+                        "agents_completed": idx,
+                        "updated_at": datetime.now().isoformat(),
+                    })
 
-                print(f"+ {agent_name} completed")
+            results["analysis_completed"] = datetime.now().isoformat()
 
-            except Exception as e:
-                print(f"X {agent_name} failed: {str(e)}")
-                results["agents"][agent_key] = {
-                    "success": False,
-                    "error": str(e)
-                }
+            if job_id:
+                update_record("analysis_jobs", job_id, {
+                    "status": "completed",
+                    "updated_at": datetime.now().isoformat(),
+                })
 
-            # Brief pause between agents
-            await asyncio.sleep(2)
+            logger.info(f"Analysis complete for user {user_id}")
 
-        results["analysis_completed"] = datetime.now().isoformat()
-
-        # Update final status
-        analysis_status[user_id]["status"] = "completed"
-        analysis_status[user_id]["last_updated"] = datetime.now().isoformat()
-
-        print(f"\n{'='*60}")
-        print(f"Analysis complete for user {user_id}")
-        print(f"{'='*60}\n")
+        except Exception as e:
+            # Catches failures outside any single agent's own try/except
+            # (e.g. the analysis_jobs update call itself failing) so the job
+            # row reflects reality instead of getting stuck "in_progress"
+            # forever.
+            logger.error(f"Analysis run failed for user {user_id}: {str(e)}", exc_info=True)
+            if job_id:
+                update_record("analysis_jobs", job_id, {
+                    "status": "failed",
+                    "error_message": str(e),
+                    "updated_at": datetime.now().isoformat(),
+                })
+            raise
 
         return results
 
@@ -193,7 +238,9 @@ async def root():
 
 
 @app.post("/api/analyze", response_model=AnalysisResponse)
+@limiter.limit("1/minute")
 async def trigger_analysis(
+    request: Request,
     background_tasks: BackgroundTasks,
     user_id: str = Depends(get_current_user_id),
 ):
@@ -203,17 +250,23 @@ async def trigger_analysis(
     user_id comes from the verified Supabase JWT, not a client-supplied
     value, so a caller can only ever trigger analysis for themselves.
     Analysis runs in background; frontend fetches results directly from
-    the database.
+    the database. Rate-limited to 1/minute per user (in addition to the
+    409-on-already-in-progress check below) -- a full analysis run is
+    expensive enough that nothing legitimate needs to trigger it faster.
     """
 
     # Check if analysis already in progress
-    if user_id in analysis_status and analysis_status[user_id]["status"] == "in_progress":
+    existing = _get_job(user_id)
+    if existing and existing["status"] == "in_progress":
         raise HTTPException(
             status_code=409,
             detail=f"Analysis already in progress for user {user_id}"
         )
 
-    # Start analysis in background
+    # Reset/create the job row synchronously so a status poll right after
+    # this call sees real state immediately, then run the agents in the
+    # background.
+    _start_job(user_id)
     background_tasks.add_task(orchestrator.run_all_agents, user_id)
 
     return AnalysisResponse(
@@ -221,7 +274,7 @@ async def trigger_analysis(
         message=f"Analysis started for user {user_id}. Results will be written to database.",
         user_id=user_id,
         analysis_started=datetime.now().isoformat(),
-        estimated_completion_minutes=8
+        estimated_completion_minutes=2
     )
 
 
@@ -240,20 +293,19 @@ async def get_analysis_status(
     if current_user != user_id:
         raise HTTPException(status_code=403, detail="Not authorized to view this user's status")
 
-    if user_id not in analysis_status:
+    job = _get_job(user_id)
+    if not job:
         raise HTTPException(
             status_code=404,
             detail=f"No analysis found for user {user_id}"
         )
 
-    status = analysis_status[user_id]
-
     return StatusResponse(
         user_id=user_id,
-        status=status["status"],
-        agents_completed=status["agents_completed"],
-        total_agents=status["total_agents"],
-        last_updated=status["last_updated"]
+        status=job["status"],
+        agents_completed=job["agents_completed"],
+        total_agents=job["total_agents"],
+        last_updated=job["updated_at"]
     )
 
 
@@ -305,11 +357,11 @@ async def get_agent_logs(
 
 
 @app.post("/api/analyze-sync")
-async def trigger_analysis_sync(user_id: str = Depends(get_current_user_id)):
+@limiter.limit("1/minute")
+async def trigger_analysis_sync(request: Request, user_id: str = Depends(get_current_user_id)):
     """
     Trigger analysis and wait for completion (synchronous)
 
-    WARNING: This will take 5-10 minutes
     Use /api/analyze (async) for production
     """
 

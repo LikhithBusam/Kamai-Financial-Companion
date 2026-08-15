@@ -1,0 +1,4 @@
+# Test-only dependencies. Kept separate from requirements.txt so CI doesn't
+# need to install the heavy, unused-by-the-live-pipeline AutoGen packages
+# (see requirements.txt's own note on this).
+pytest

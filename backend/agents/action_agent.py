@@ -11,9 +11,12 @@ Writes to: executed_actions table
 
 import asyncio
 import json
+import logging
 from datetime import datetime, timedelta
 
 from finance_helpers import fetch_records, write_record
+
+logger = logging.getLogger(__name__)
 
 
 class ActionExecutionAgent:
@@ -23,7 +26,7 @@ class ActionExecutionAgent:
         self.mcp_servers = mcp_servers
 
     async def analyze_user(self, user_id: str) -> dict:
-        print(f"[Action Agent] Starting analysis for user {user_id}")
+        logger.info(f"[Action Agent] Starting analysis for user {user_id}")
 
         try:
             savings_rows = fetch_records("savings_goals", user_id, order_by="created_at.desc", limit=5)
@@ -45,7 +48,7 @@ class ActionExecutionAgent:
                     "is_reversible": True,
                 })
                 created.append(action)
-                print(f"[Action Agent] Suggested savings transfer: Rs {ef_goal['monthly_contribution']}")
+                logger.info(f"[Action Agent] Suggested savings transfer: Rs {ef_goal['monthly_contribution']}")
 
             upcoming_cutoff = (datetime.now() + timedelta(days=14)).date().isoformat()
             for bill in bill_rows:
@@ -65,7 +68,7 @@ class ActionExecutionAgent:
                     "is_reversible": True,
                 })
                 created.append(action)
-                print(f"[Action Agent] Suggested bill payment: {bill['bill_name']}")
+                logger.info(f"[Action Agent] Suggested bill payment: {bill['bill_name']}")
 
             return {
                 "success": True,
@@ -76,7 +79,7 @@ class ActionExecutionAgent:
             }
 
         except Exception as e:
-            print(f"[Action Agent] Error analyzing user {user_id}: {str(e)}")
+            logger.error(f"[Action Agent] Error analyzing user {user_id}: {str(e)}", exc_info=True)
             return {
                 "success": False,
                 "user_id": user_id,

@@ -21,7 +21,13 @@ const Profile = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [profile, setProfile] = useState<any>(null);
+  const [passwordForm, setPasswordForm] = useState({
+    current_password: "",
+    new_password: "",
+    confirm_password: "",
+  });
   const [formData, setFormData] = useState({
     // Basic Info
     full_name: "",
@@ -126,6 +132,34 @@ const Profile = () => {
       toast.error("Failed to update profile");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!passwordForm.current_password || !passwordForm.new_password) {
+      toast.error("Please fill in all password fields");
+      return;
+    }
+    if (passwordForm.new_password !== passwordForm.confirm_password) {
+      toast.error("New passwords don't match");
+      return;
+    }
+
+    try {
+      setIsChangingPassword(true);
+      await db.auth.changePassword(
+        formData.phone_number,
+        passwordForm.current_password,
+        passwordForm.new_password
+      );
+      toast.success("Password changed successfully!");
+      setPasswordForm({ current_password: "", new_password: "", confirm_password: "" });
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to change password");
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -328,39 +362,40 @@ const Profile = () => {
       {/* Security */}
       <Card className="p-6">
         <h3 className="text-lg font-semibold mb-4">Security</h3>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            // Password change logic will be implemented here
-            toast.info("Password change feature coming soon");
-          }}
-          className="space-y-4"
-        >
+        <form onSubmit={handleChangePassword} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="current-password">Current Password</Label>
-            <Input 
+            <Input
               id="current-password"
-              type="password" 
+              type="password"
               autoComplete="current-password"
+              value={passwordForm.current_password}
+              onChange={(e) => setPasswordForm({ ...passwordForm, current_password: e.target.value })}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="new-password">New Password</Label>
-            <Input 
+            <Input
               id="new-password"
-              type="password" 
+              type="password"
               autoComplete="new-password"
+              value={passwordForm.new_password}
+              onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirm-password">Confirm New Password</Label>
-            <Input 
+            <Input
               id="confirm-password"
-              type="password" 
+              type="password"
               autoComplete="new-password"
+              value={passwordForm.confirm_password}
+              onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
             />
           </div>
-          <Button type="submit" variant="outline">Change Password</Button>
+          <Button type="submit" variant="outline" disabled={isChangingPassword}>
+            {isChangingPassword ? "Changing..." : "Change Password"}
+          </Button>
         </form>
           </Card>
 

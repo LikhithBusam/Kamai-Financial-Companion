@@ -10,6 +10,7 @@ Writes to: income_forecasts table
 
 import asyncio
 import json
+import logging
 from datetime import datetime
 
 from finance_helpers import (
@@ -20,6 +21,8 @@ from finance_helpers import (
     write_record,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class VolatilityForecasterAgent:
     """Forecasts near-term income scenarios from real transaction volatility."""
@@ -28,7 +31,7 @@ class VolatilityForecasterAgent:
         self.mcp_servers = mcp_servers
 
     async def analyze_user(self, user_id: str) -> dict:
-        print(f"[Volatility Agent] Starting analysis for user {user_id}")
+        logger.info(f"[Volatility Agent] Starting analysis for user {user_id}")
 
         try:
             transactions = fetch_transactions(user_id, days=90)
@@ -52,7 +55,7 @@ class VolatilityForecasterAgent:
 
             record = {**forecast, "user_id": user_id}
             written = write_record("income_forecasts", record)
-            print(f"[Volatility Agent] Created income forecast, trend: {forecast['recent_trend']}")
+            logger.info(f"[Volatility Agent] Created income forecast, trend: {forecast['recent_trend']}")
 
             return {
                 "success": True,
@@ -63,7 +66,7 @@ class VolatilityForecasterAgent:
             }
 
         except Exception as e:
-            print(f"[Volatility Agent] Error analyzing user {user_id}: {str(e)}")
+            logger.error(f"[Volatility Agent] Error analyzing user {user_id}: {str(e)}", exc_info=True)
             return {
                 "success": False,
                 "user_id": user_id,

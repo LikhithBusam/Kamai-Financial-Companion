@@ -9,6 +9,7 @@ Writes to: risk_assessments table
 
 import asyncio
 import json
+import logging
 from datetime import datetime
 
 from finance_helpers import (
@@ -20,6 +21,8 @@ from finance_helpers import (
     write_record,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class RiskAssessmentAgent:
     """Evaluates financial risk from real data and decides if escalation is needed."""
@@ -28,7 +31,7 @@ class RiskAssessmentAgent:
         self.mcp_servers = mcp_servers
 
     async def analyze_user(self, user_id: str) -> dict:
-        print(f"[Risk Agent] Starting analysis for user {user_id}")
+        logger.info(f"[Risk Agent] Starting analysis for user {user_id}")
 
         try:
             transactions = fetch_transactions(user_id, days=90)
@@ -59,7 +62,7 @@ class RiskAssessmentAgent:
                 "assessment_date": datetime.now().date().isoformat(),
             }
             written = write_record("risk_assessments", record)
-            print(f"[Risk Agent] Created risk assessment: {assessment['overall_risk_level']}")
+            logger.info(f"[Risk Agent] Created risk assessment: {assessment['overall_risk_level']}")
 
             return {
                 "success": True,
@@ -70,7 +73,7 @@ class RiskAssessmentAgent:
             }
 
         except Exception as e:
-            print(f"[Risk Agent] Error analyzing user {user_id}: {str(e)}")
+            logger.error(f"[Risk Agent] Error analyzing user {user_id}: {str(e)}", exc_info=True)
             return {
                 "success": False,
                 "user_id": user_id,

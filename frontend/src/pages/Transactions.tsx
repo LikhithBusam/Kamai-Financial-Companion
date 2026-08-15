@@ -391,7 +391,7 @@ const TransactionRow = ({
                       <div>
                         <div className="font-semibold">{transaction.category || "Uncategorized"}</div>
                         <div className="text-sm text-muted-foreground">
-                          {transaction.transaction_time || "N/A"} • {transaction.description || "No description"}
+                          {transaction.transaction_time ? transaction.transaction_time.slice(0, 5) : "N/A"} • {transaction.description || "No description"}
                         </div>
                       </div>
                     </div>
@@ -430,7 +430,7 @@ const EditTransactionDialog = ({
     amount: transaction?.amount?.toString() || "",
     transaction_type: transaction?.transaction_type || "expense",
     transaction_date: transaction?.transaction_date ? new Date(transaction.transaction_date) : new Date(),
-    transaction_time: transaction?.transaction_time || "",
+    transaction_time: transaction?.transaction_time ? transaction.transaction_time.slice(0, 5) : "",
     category: transaction?.category || "",
     subcategory: transaction?.subcategory || "",
     payment_method: transaction?.payment_method || "",
@@ -449,7 +449,7 @@ const EditTransactionDialog = ({
         amount: transaction.amount?.toString() || "",
         transaction_type: transaction.transaction_type || "expense",
         transaction_date: transaction.transaction_date ? new Date(transaction.transaction_date) : new Date(),
-        transaction_time: transaction.transaction_time || "",
+        transaction_time: transaction.transaction_time ? transaction.transaction_time.slice(0, 5) : "",
         category: transaction.category || "",
         subcategory: transaction.subcategory || "",
         payment_method: transaction.payment_method || "",

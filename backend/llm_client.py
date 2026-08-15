@@ -12,16 +12,25 @@ autogen-ext stack.
 """
 
 import asyncio
+import logging
 import os
 import time
 from typing import Optional
 
 import requests
 
+logger = logging.getLogger(__name__)
+
 # Rate limiting - shared across providers so a Gemini->Groq fallback within
-# one call doesn't burst past either provider's free-tier quota.
+# one call doesn't burst past either provider's free-tier quota. Real free
+# tiers (checked directly): Gemini 2.5 Flash allows 10 requests/minute,
+# Groq's llama-3.3-70b-versatile allows 30/minute. 7s keeps every call under
+# the tighter (Gemini) limit with margin, instead of the previous 60s, which
+# was ~6-10x more conservative than needed and made a 9-agent analysis run
+# (each agent makes one narrative call) take close to 8 minutes wall-clock
+# for no quota-safety reason.
 last_call_time = 0
-RATE_LIMIT_DELAY = 60
+RATE_LIMIT_DELAY = 7
 
 
 class OpenAICompatibleClient:
@@ -52,7 +61,7 @@ class OpenAICompatibleClient:
         current_time = time.time()
         if current_time - last_call_time < RATE_LIMIT_DELAY:
             wait_time = RATE_LIMIT_DELAY - (current_time - last_call_time)
-            print(f"[{self.provider}] Rate limiting: waiting {wait_time:.1f} seconds...")
+            logger.info(f"[{self.provider}] Rate limiting: waiting {wait_time:.1f} seconds...")
             await asyncio.sleep(wait_time)
 
         last_call_time = time.time()
@@ -180,7 +189,7 @@ async def generate_narrative(system_prompt: str, user_prompt: str, max_tokens: i
             if content:
                 return content.strip()
         except Exception as e:
-            print(f"[generate_narrative] {factory.__name__} failed: {e}")
+            logger.warning(f"[generate_narrative] {factory.__name__} failed: {e}")
             continue
 
     return "Analysis based on your recent transaction history."

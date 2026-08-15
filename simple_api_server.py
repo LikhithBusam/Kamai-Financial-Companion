@@ -6,7 +6,10 @@ A minimal FastAPI server to expose the transaction parser as HTTP endpoints.
 This allows the frontend to call the parser via API.
 
 Usage:
-    uvicorn simple_api_server:app --reload --port 8000
+    uvicorn simple_api_server:app --reload --port 8001
+
+Runs on 8001, not 8000, so it can run alongside backend/main.py (the live
+agent-analysis backend, which owns port 8000) without colliding.
 """
 
 import os

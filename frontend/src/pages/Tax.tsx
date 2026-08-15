@@ -39,7 +39,12 @@ const applyRebate = (tax: number, taxableIncome: number): number => {
 const Tax = () => {
   const navigate = useNavigate();
   const [taxRecords, setTaxRecords] = useState<any[]>([]);
-  const [selectedYear, setSelectedYear] = useState<string>("2024-25");
+  // Starts empty (not hardcoded to a specific FY) so loadTaxRecords()'s
+  // "auto-select the most recent year with real data" logic below actually
+  // runs -- it's guarded by `!selectedYear`, which a hardcoded default
+  // permanently defeated, always showing "no tax record" even when a real
+  // one existed for the actual current FY.
+  const [selectedYear, setSelectedYear] = useState<string>("");
   const [currentRecord, setCurrentRecord] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasMinimumData, setHasMinimumData] = useState(false);

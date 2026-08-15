@@ -20,6 +20,7 @@ const Savings = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasMinimumData, setHasMinimumData] = useState(false);
   const [activeTab, setActiveTab] = useState("savings");
+  const [startingInvestmentId, setStartingInvestmentId] = useState<string | null>(null);
 
   useEffect(() => {
     checkDataRequirements();
@@ -69,6 +70,26 @@ const Savings = () => {
         return <Badge className="bg-red-100 text-red-800">High Risk</Badge>;
       default:
         return <Badge variant="outline">{riskLevel}</Badge>;
+    }
+  };
+
+  const handleStartInvesting = async (investment: any) => {
+    try {
+      setStartingInvestmentId(investment.id);
+      await db.actions.create({
+        action_type: "investment",
+        action_description: `Start ${investment.investment_type?.replace("_", " ")} with ${investment.provider || "recommended provider"}`,
+        amount: investment.recommended_amount || 0,
+        schedule: investment.frequency === "monthly" ? "monthly" : "once",
+        status: "pending",
+      });
+      toast.success("Added to your Action Plan — approve it there to track progress");
+      navigate("/actions");
+    } catch (error) {
+      console.error("Failed to start investment:", error);
+      toast.error("Failed to add investment action");
+    } finally {
+      setStartingInvestmentId(null);
     }
   };
 
@@ -316,8 +337,13 @@ const Savings = () => {
                       </div>
                     )}
 
-                    <Button className="w-full mt-4" variant="outline">
-                      Start Investing
+                    <Button
+                      className="w-full mt-4"
+                      variant="outline"
+                      disabled={startingInvestmentId === investment.id}
+                      onClick={() => handleStartInvesting(investment)}
+                    >
+                      {startingInvestmentId === investment.id ? "Adding..." : "Start Investing"}
                     </Button>
                   </Card>
                 </motion.div>

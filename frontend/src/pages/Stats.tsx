@@ -128,16 +128,18 @@ const Stats = () => {
       let emergencyFund = { current: 0, target: 0, percentage: 0, months_covered: 0 };
       try {
         const profile = await db.users.getProfile();
-        emergencyFund = {
-          current: Number(profile.current_emergency_fund) || 0,
-          target: Number(profile.emergency_fund_target) || 0,
-          percentage: profile.emergency_fund_target
-            ? (Number(profile.current_emergency_fund) / Number(profile.emergency_fund_target)) * 100
-            : 0,
-          months_covered: profile.monthly_expenses_avg
-            ? Number(profile.current_emergency_fund) / Number(profile.monthly_expenses_avg)
-            : 0,
-        };
+        if (profile) {
+          emergencyFund = {
+            current: Number(profile.current_emergency_fund) || 0,
+            target: Number(profile.emergency_fund_target) || 0,
+            percentage: profile.emergency_fund_target
+              ? (Number(profile.current_emergency_fund) / Number(profile.emergency_fund_target)) * 100
+              : 0,
+            months_covered: profile.monthly_expenses_avg
+              ? Number(profile.current_emergency_fund) / Number(profile.monthly_expenses_avg)
+              : 0,
+          };
+        }
       } catch (error) {
         console.error("Failed to load profile:", error);
       }

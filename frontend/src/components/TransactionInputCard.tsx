@@ -36,7 +36,7 @@ const TransactionInputCard = ({ onSuccess }: TransactionInputCardProps) => {
     amount: "",
     transaction_type: "expense" as "income" | "expense",
     transaction_date: new Date(),
-    transaction_time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+    transaction_time: new Date().toTimeString().slice(0, 5), // HH:mm, matches <input type="time">'s required format
     category: "",
     subcategory: "",
     payment_method: "",
@@ -90,7 +90,7 @@ const TransactionInputCard = ({ onSuccess }: TransactionInputCardProps) => {
         amount: "",
         transaction_type: "expense",
         transaction_date: new Date(),
-        transaction_time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+        transaction_time: new Date().toTimeString().slice(0, 5), // HH:mm, matches <input type="time">'s required format
         category: "",
         subcategory: "",
         payment_method: "",

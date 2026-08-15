@@ -8,6 +8,7 @@ Writes to: budgets table
 
 import asyncio
 import json
+import logging
 from datetime import datetime
 
 from finance_helpers import (
@@ -19,6 +20,8 @@ from finance_helpers import (
     write_record,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class BudgetAnalysisAgent:
     """Creates feast/famine/monthly budgets for gig workers from real data."""
@@ -27,7 +30,7 @@ class BudgetAnalysisAgent:
         self.mcp_servers = mcp_servers
 
     async def analyze_user(self, user_id: str) -> dict:
-        print(f"[Budget Agent] Starting analysis for user {user_id}")
+        logger.info(f"[Budget Agent] Starting analysis for user {user_id}")
 
         try:
             transactions = fetch_transactions(user_id, days=90)
@@ -54,7 +57,7 @@ class BudgetAnalysisAgent:
             for budget in budgets:
                 record = {**budget, "user_id": user_id, "is_active": True}
                 written.append(write_record("budgets", record))
-                print(f"[Budget Agent] Created budget: {budget['budget_type']}")
+                logger.info(f"[Budget Agent] Created budget: {budget['budget_type']}")
 
             return {
                 "success": True,
@@ -65,7 +68,7 @@ class BudgetAnalysisAgent:
             }
 
         except Exception as e:
-            print(f"[Budget Agent] Error analyzing user {user_id}: {str(e)}")
+            logger.error(f"[Budget Agent] Error analyzing user {user_id}: {str(e)}", exc_info=True)
             return {
                 "success": False,
                 "user_id": user_id,

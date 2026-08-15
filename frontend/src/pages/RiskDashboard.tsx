@@ -18,6 +18,7 @@ const RiskDashboard = () => {
   const [risk, setRisk] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasMinimumData, setHasMinimumData] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     checkDataRequirements();
@@ -43,22 +44,16 @@ const RiskDashboard = () => {
   const loadRiskAssessment = async () => {
     try {
       setIsLoading(true);
+      setLoadError(false);
+      // getLatest() resolves to null (not an error) when no assessment has
+      // been generated yet -- that's a real, expected state, not a failure.
       const data = await db.riskAssessments.getLatest();
       setRisk(data);
     } catch (error) {
       console.error("Failed to load risk assessment:", error);
-      // Create a default risk assessment if none exists
-      setRisk({
-        overall_risk_level: "medium",
-        risk_score: 5.5,
-        debt_to_income_ratio: 0.3,
-        income_drop_percentage: 0,
-        expense_spike_factor: 1.0,
-        emergency_fund_coverage: 2.5,
-        risk_factors: [],
-        recommended_actions: [],
-        escalation_needed: false,
-      });
+      setRisk(null);
+      setLoadError(true);
+      toast.error("Failed to load risk assessment");
     } finally {
       setIsLoading(false);
     }
@@ -116,8 +111,19 @@ const RiskDashboard = () => {
   if (!risk) {
     return (
       <Card className="p-12 text-center">
-        <p className="text-lg font-semibold mb-2">No risk assessment available</p>
-        <p className="text-muted-foreground">Risk assessment will be generated based on your financial data</p>
+        <p className="text-lg font-semibold mb-2">
+          {loadError ? "Couldn't load your risk assessment" : "No risk assessment available"}
+        </p>
+        <p className="text-muted-foreground mb-4">
+          {loadError
+            ? "Something went wrong fetching your data. Please try again."
+            : "Risk assessment will be generated based on your financial data"}
+        </p>
+        {loadError && (
+          <Button onClick={loadRiskAssessment} variant="outline">
+            Try Again
+          </Button>
+        )}
       </Card>
     );
   }

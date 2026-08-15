@@ -25,7 +25,7 @@ const LandingPage = () => {
     { 
       icon: Brain, 
       title: 'AI-Powered Insights', 
-      desc: 'Claude 4.5 powered financial analysis',
+      desc: 'Gemini-powered financial analysis',
       color: 'from-slate-700 to-slate-800'
     },
     { 
@@ -418,7 +418,7 @@ const LandingPage = () => {
                 variant="outline"
                 size="lg"
                 onClick={() => navigate('/features')}
-                className="border-slate-600 text-slate-300 hover:bg-slate-800 px-8 py-6 text-lg font-medium"
+                className="bg-transparent border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white px-8 py-6 text-lg font-medium"
               >
                 Explore Features
               </Button>

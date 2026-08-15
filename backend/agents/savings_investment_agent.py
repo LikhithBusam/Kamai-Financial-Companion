@@ -12,6 +12,7 @@ Writes to: savings_goals, investment_recommendations tables
 
 import asyncio
 import json
+import logging
 from datetime import datetime
 
 from finance_helpers import (
@@ -23,6 +24,8 @@ from finance_helpers import (
     write_record,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class SavingsInvestmentAgent:
     """Recommends an emergency fund target and low-risk investments from real data."""
@@ -31,7 +34,7 @@ class SavingsInvestmentAgent:
         self.mcp_servers = mcp_servers
 
     async def analyze_user(self, user_id: str) -> dict:
-        print(f"[Savings Agent] Starting analysis for user {user_id}")
+        logger.info(f"[Savings Agent] Starting analysis for user {user_id}")
 
         try:
             transactions = fetch_transactions(user_id, days=90)
@@ -66,7 +69,7 @@ class SavingsInvestmentAgent:
                 "status": ef["status"],
                 "reasoning": ef["reasoning"],
             })
-            print("[Savings Agent] Created emergency fund goal")
+            logger.info("[Savings Agent] Created emergency fund goal")
 
             investment_records = []
             for inv in plan["investment_recommendations"]:
@@ -81,7 +84,7 @@ class SavingsInvestmentAgent:
                     "min_lock_in_months": inv["min_lock_in_months"],
                     "reasoning": inv["reasoning"],
                 }))
-                print(f"[Savings Agent] Created investment recommendation: {inv['investment_type']}")
+                logger.info(f"[Savings Agent] Created investment recommendation: {inv['investment_type']}")
 
             return {
                 "success": True,
@@ -92,7 +95,7 @@ class SavingsInvestmentAgent:
             }
 
         except Exception as e:
-            print(f"[Savings Agent] Error analyzing user {user_id}: {str(e)}")
+            logger.error(f"[Savings Agent] Error analyzing user {user_id}: {str(e)}", exc_info=True)
             return {
                 "success": False,
                 "user_id": user_id,

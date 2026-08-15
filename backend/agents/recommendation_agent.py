@@ -11,9 +11,12 @@ Writes to: recommendations table
 
 import asyncio
 import json
+import logging
 from datetime import datetime
 
 from finance_helpers import fetch_records, generate_narrative, write_record
+
+logger = logging.getLogger(__name__)
 
 
 class RecommendationAgent:
@@ -23,7 +26,7 @@ class RecommendationAgent:
         self.mcp_servers = mcp_servers
 
     async def analyze_user(self, user_id: str) -> dict:
-        print(f"[Recommendation Agent] Starting analysis for user {user_id}")
+        logger.info(f"[Recommendation Agent] Starting analysis for user {user_id}")
 
         try:
             risk_rows = fetch_records("risk_assessments", user_id, order_by="assessment_date.desc", limit=1)
@@ -110,7 +113,7 @@ class RecommendationAgent:
                     "status": "pending",
                 })
                 written.append(record)
-                print(f"[Recommendation Agent] Created recommendation: {c['title']}")
+                logger.info(f"[Recommendation Agent] Created recommendation: {c['title']}")
 
             return {
                 "success": True,
@@ -121,7 +124,7 @@ class RecommendationAgent:
             }
 
         except Exception as e:
-            print(f"[Recommendation Agent] Error analyzing user {user_id}: {str(e)}")
+            logger.error(f"[Recommendation Agent] Error analyzing user {user_id}: {str(e)}", exc_info=True)
             return {
                 "success": False,
                 "user_id": user_id,

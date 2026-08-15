@@ -29,11 +29,10 @@ def _get_jwks_client() -> jwt.PyJWKClient:
     return _jwks_client
 
 
-def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
-    # authorization must be Optional with a None default -- Header(...)
-    # (required) makes FastAPI reject a missing header at the request-
-    # validation layer with a 422 before this function body ever runs,
-    # which bypasses the 401 a real client is checking for.
+def _verify_bearer_token(authorization: Optional[str]) -> str:
+    """Core JWT verification, factored out so both the FastAPI dependency
+    below and the rate limiter's key function (which gets a raw Request,
+    not a resolved dependency) can reuse the same real verification."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing bearer token")
 
@@ -57,3 +56,27 @@ def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     return payload["sub"]
+
+
+def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
+    # authorization must be Optional with a None default -- Header(...)
+    # (required) makes FastAPI reject a missing header at the request-
+    # validation layer with a 422 before this function body ever runs,
+    # which bypasses the 401 a real client is checking for.
+    return _verify_bearer_token(authorization)
+
+
+def get_user_id_for_rate_limit(request) -> str:
+    """
+    Rate-limit key function: the real verified user_id, not IP -- IP-based
+    limiting would be wrong here (many Indian mobile users share carrier-NAT
+    IPs, so one user's limit would throttle unrelated users). Never raises:
+    an invalid/missing token still needs *some* key so slowapi can evaluate
+    the decorator, and the endpoint's own get_current_user_id dependency is
+    what actually rejects bad tokens with a 401 -- this only needs a key,
+    not to be the authority on validity.
+    """
+    try:
+        return _verify_bearer_token(request.headers.get("authorization"))
+    except HTTPException:
+        return "anonymous"

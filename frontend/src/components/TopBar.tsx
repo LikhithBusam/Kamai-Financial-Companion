@@ -19,6 +19,8 @@ const pageTitles: Record<string, string> = {
   "/budget": "Budget",
   "/risk": "Risk Analysis",
   "/actions": "Action Plan",
+  "/goals": "Goals",
+  "/savings": "Savings",
   "/tax": "Tax",
   "/benefits": "Benefits",
   "/profile": "Profile",

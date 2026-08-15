@@ -139,22 +139,43 @@ const Actions = () => {
     }
   };
 
-  const handleApprove = async (id: number) => {
+  const handleApprove = async (actionId: string) => {
     try {
-      // Update action status
+      await db.actions.updateStatus(actionId, {
+        status: "active",
+        user_approved: true,
+        approval_date: new Date().toISOString(),
+      });
       toast.success("Action approved");
       loadActions();
     } catch (error) {
+      console.error("Failed to approve action:", error);
       toast.error("Failed to approve action");
     }
   };
 
-  const handlePause = async (id: number) => {
+  const handlePause = async (actionId: string) => {
     try {
+      await db.actions.updateStatus(actionId, { status: "paused" });
       toast.success("Action paused");
       loadActions();
     } catch (error) {
+      console.error("Failed to pause action:", error);
       toast.error("Failed to pause action");
+    }
+  };
+
+  const handleRequestReversal = async (actionId: string) => {
+    try {
+      await db.actions.updateStatus(actionId, {
+        reversal_requested: true,
+        reversal_date: new Date().toISOString(),
+      });
+      toast.success("Reversal requested");
+      loadActions();
+    } catch (error) {
+      console.error("Failed to request reversal:", error);
+      toast.error("Failed to request reversal");
     }
   };
 
@@ -326,12 +347,13 @@ const Actions = () => {
             ) : (
               <div className="space-y-4">
                 {currentActions.map((action) => (
-                  <Card key={action.id} className="p-6">
+                  <Card key={action.action_id} className="p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
                           <h3 className="font-semibold text-lg">{action.action_description || action.action_type}</h3>
                           {getStatusBadge(action.status)}
+                          {action.reversal_requested && <Badge variant="outline">Reversal requested</Badge>}
                         </div>
                         <p className="text-sm text-muted-foreground mb-2">
                           Amount: ₹{Number(action.amount || 0).toLocaleString("en-IN")}
@@ -348,18 +370,18 @@ const Actions = () => {
               </div>
                     <div className="flex gap-2">
                       {action.status === "active" ? (
-                        <Button variant="outline" size="sm" onClick={() => handlePause(action.id)}>
+                        <Button variant="outline" size="sm" onClick={() => handlePause(action.action_id)}>
                           <Pause className="w-4 h-4 mr-2" />
                           Pause
                         </Button>
                       ) : (
-                        <Button size="sm" onClick={() => handleApprove(action.id)}>
+                        <Button size="sm" onClick={() => handleApprove(action.action_id)}>
                           <Play className="w-4 h-4 mr-2" />
                           Approve
                         </Button>
                       )}
-                      {action.is_reversible && (
-                        <Button variant="outline" size="sm">
+                      {action.is_reversible && !action.reversal_requested && (
+                        <Button variant="outline" size="sm" onClick={() => handleRequestReversal(action.action_id)}>
                           <RotateCcw className="w-4 h-4 mr-2" />
                           Request Reversal
                         </Button>
@@ -387,7 +409,7 @@ const Actions = () => {
           ) : (
             <div className="space-y-4">
               {ongoingActions.map((action) => (
-                <Card key={action.id} className="p-6">
+                <Card key={action.action_id} className="p-6">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
@@ -406,7 +428,7 @@ const Actions = () => {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handlePause(action.id)}>
+                    <Button variant="outline" size="sm" onClick={() => handlePause(action.action_id)}>
                       <Pause className="w-4 h-4 mr-2" />
                       Pause
                     </Button>
@@ -429,7 +451,7 @@ const Actions = () => {
           ) : (
             <div className="space-y-4">
               {completedActions.map((action) => (
-                <Card key={action.id} className="p-6">
+                <Card key={action.action_id} className="p-6">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">

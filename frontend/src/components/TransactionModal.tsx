@@ -32,7 +32,7 @@ const TransactionModal = ({ open, onClose }: TransactionModalProps) => {
       type,
       category,
       amount: parseFloat(amount),
-      time: now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+      time: now.toTimeString().slice(0, 5), // HH:mm -- transaction_time is a Postgres `time` column
       date: now.toISOString().split("T")[0],
     });
 

@@ -13,6 +13,7 @@ Writes to: financial_goals table
 
 import asyncio
 import json
+import logging
 from datetime import datetime
 
 from finance_helpers import (
@@ -26,6 +27,8 @@ from finance_helpers import (
     update_record,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class FinancialGoalsAgent:
     """Recomputes real progress for existing goals; seeds one starter goal if none exist."""
@@ -34,7 +37,7 @@ class FinancialGoalsAgent:
         self.mcp_servers = mcp_servers
 
     async def analyze_user(self, user_id: str) -> dict:
-        print(f"[Goals Agent] Starting analysis for user {user_id}")
+        logger.info(f"[Goals Agent] Starting analysis for user {user_id}")
 
         try:
             transactions = fetch_transactions(user_id, days=90)
@@ -59,7 +62,7 @@ class FinancialGoalsAgent:
                     })
                     if updated_goal:
                         updated.append(updated_goal)
-                        print(f"[Goals Agent] Updated progress for goal: {goal['goal_name']}")
+                        logger.info(f"[Goals Agent] Updated progress for goal: {goal['goal_name']}")
             else:
                 plan = compute_savings_plan(stats, profile)
                 ef = plan["emergency_fund"]
@@ -82,7 +85,7 @@ class FinancialGoalsAgent:
                     "progress_percentage": projection["progress_percentage"],
                 })
                 updated.append(goal_record)
-                print("[Goals Agent] Created starter emergency fund goal (no existing goals found)")
+                logger.info("[Goals Agent] Created starter emergency fund goal (no existing goals found)")
 
             return {
                 "success": True,
@@ -93,7 +96,7 @@ class FinancialGoalsAgent:
             }
 
         except Exception as e:
-            print(f"[Goals Agent] Error analyzing user {user_id}: {str(e)}")
+            logger.error(f"[Goals Agent] Error analyzing user {user_id}: {str(e)}", exc_info=True)
             return {
                 "success": False,
                 "user_id": user_id,

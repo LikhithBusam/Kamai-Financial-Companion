@@ -10,11 +10,14 @@ Writes to: bills table
 
 import asyncio
 import json
+import logging
 import statistics
 from collections import defaultdict
 from datetime import datetime, timedelta
 
 from finance_helpers import fetch_transactions, fetch_records, write_record
+
+logger = logging.getLogger(__name__)
 
 MIN_OCCURRENCES = 2
 AMOUNT_TOLERANCE = 0.15  # 15% variation still counts as "the same" recurring bill
@@ -27,7 +30,7 @@ class BillPaymentAgent:
         self.mcp_servers = mcp_servers
 
     async def analyze_user(self, user_id: str) -> dict:
-        print(f"[Bill Agent] Starting analysis for user {user_id}")
+        logger.info(f"[Bill Agent] Starting analysis for user {user_id}")
 
         try:
             transactions = fetch_transactions(user_id, days=90)
@@ -76,7 +79,7 @@ class BillPaymentAgent:
                     "status": "pending",
                 })
                 created.append(bill)
-                print(f"[Bill Agent] Detected recurring bill: {bill_name} (~Rs {bill['amount']})")
+                logger.info(f"[Bill Agent] Detected recurring bill: {bill_name} (~Rs {bill['amount']})")
 
             return {
                 "success": True,
@@ -87,7 +90,7 @@ class BillPaymentAgent:
             }
 
         except Exception as e:
-            print(f"[Bill Agent] Error analyzing user {user_id}: {str(e)}")
+            logger.error(f"[Bill Agent] Error analyzing user {user_id}: {str(e)}", exc_info=True)
             return {
                 "success": False,
                 "user_id": user_id,

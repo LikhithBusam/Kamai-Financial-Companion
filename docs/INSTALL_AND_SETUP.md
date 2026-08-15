@@ -42,7 +42,7 @@ Start the API server that the frontend will connect to:
 python simple_api_server.py
 ```
 
-The server will start at: **http://localhost:8000**
+The server will start at: **http://localhost:8001** (not 8000 — `backend/main.py`, the live agent-analysis backend, owns port 8000)
 
 You should see:
 ```
@@ -53,17 +53,16 @@ Endpoints:
   POST /api/parse-image - Parse receipt/bill images
   POST /api/parse-voice - Parse voice recordings
 
-Server will be available at: http://localhost:8000
-API docs at: http://localhost:8000/docs
+Server will be available at: http://localhost:8001
+API docs at: http://localhost:8001/docs
 ```
 
 ## Step 4: Update Frontend API URL (if needed)
 
-The frontend is configured to use `http://localhost:8000/api` by default.
+The frontend is configured to use `http://localhost:8001/api` by default.
 
-If your API server runs on a different port, update this in:
-- File: `frontend/src/components/TransactionInputCard.tsx`
-- Line: `const PARSER_API_URL = "http://localhost:8000/api";`
+If your API server runs on a different port, set `VITE_PARSER_API_URL` in
+`frontend/.env.local` (see `frontend/src/components/TransactionInputCard.tsx`).
 
 ## Step 5: Start Your Frontend
 
@@ -95,7 +94,7 @@ Or test voice:
 
 ### "Failed to process image/voice"
 - Make sure the API server is running (`python simple_api_server.py`)
-- Check that the server is on port 8000
+- Check that the server is on port 8001
 - Check browser console for detailed errors
 
 ### "Could not access microphone"

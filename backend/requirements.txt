@@ -28,6 +28,9 @@ python-multipart
 # Auth: verifying Supabase-issued JWTs
 PyJWT
 
+# Per-user rate limiting on expensive endpoints (/api/analyze, /api/analyze-sync)
+slowapi
+
 # Database (for direct queries if needed)
 psycopg2-binary
 sqlalchemy

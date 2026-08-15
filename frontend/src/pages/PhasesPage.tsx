@@ -150,14 +150,14 @@ const PhasesPage = () => {
           <h2 className="text-2xl font-bold mb-6">Technology Stack</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { name: 'Claude Sonnet 4.5', category: 'AI/LLM' },
-              { name: 'React Native', category: 'Frontend' },
-              { name: 'SQLite', category: 'Database' },
-              { name: 'AWS/Azure', category: 'Cloud' },
-              { name: 'TensorFlow', category: 'ML' },
+              { name: 'Gemini 2.5 Flash + Groq', category: 'AI/LLM' },
+              { name: 'React + TypeScript', category: 'Frontend' },
+              { name: 'Vite', category: 'Build Tool' },
+              { name: 'FastAPI', category: 'Backend' },
+              { name: 'Supabase', category: 'Database & Auth' },
               { name: 'PostgreSQL', category: 'Database' },
-              { name: 'Kubernetes', category: 'Infrastructure' },
-              { name: 'Auth0', category: 'Security' }
+              { name: 'Tailwind CSS', category: 'Styling' },
+              { name: 'shadcn/ui', category: 'UI Components' }
             ].map((tech, idx) => (
               <div key={idx} className="text-center p-4 rounded-lg bg-muted/50">
                 <div className="font-medium text-sm">{tech.name}</div>
