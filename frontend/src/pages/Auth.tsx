@@ -89,7 +89,7 @@ const Auth = () => {
   const features = [
     { icon: Brain, text: "AI-Powered Financial Analysis" },
     { icon: TrendingUp, text: "Income Forecasting" },
-    { icon: Shield, text: "Offline-First Privacy" },
+    { icon: Shield, text: "Row-Level Security" },
     { icon: Zap, text: "Real-time Automation" },
   ];
 

@@ -19,24 +19,24 @@ const PhasesPage = () => {
     {
       key: 'main' as FlowchartKey,
       title: 'System Overview',
-      description: 'Complete AI-powered financial assistance system',
-      features: ['Multi-agent AI', 'Real-time Processing', 'Emergency Response'],
+      description: 'How a transaction becomes a financial analysis',
+      features: ['9-Agent Pipeline', 'Real Computed Numbers', 'Row-Level Security'],
       color: 'from-slate-700 to-slate-800',
       icon: '🧠'
     },
     {
       key: 'phase0' as FlowchartKey,
-      title: 'Offline-First Engine',
-      description: 'Device-first data collection and processing',
-      features: ['Local Storage', 'Smart Sync', 'Privacy Protection'],
+      title: 'Data Input Methods',
+      description: 'Three real ways to log a transaction',
+      features: ['Manual Entry', 'Receipt Photo OCR', 'Voice Input'],
       color: 'from-slate-600 to-slate-700',
-      icon: '💾'
+      icon: '📥'
     },
     {
       key: 'features' as FlowchartKey,
       title: 'Core Features',
-      description: 'Key capabilities and user benefits',
-      features: ['Income Tracking', 'Smart Budgeting', 'Tax Management'],
+      description: 'What each agent actually computes',
+      features: ['Income Tracking', 'Smart Budgeting', 'Tax Planning'],
       color: 'from-emerald-600 to-emerald-700',
       icon: '✨'
     }
@@ -114,33 +114,33 @@ const PhasesPage = () => {
         <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="p-6 text-center">
             <div className="text-3xl mb-3">⚡</div>
-            <h3 className="font-semibold mb-2">2-Second Response</h3>
+            <h3 className="font-semibold mb-2">Fast Analysis</h3>
             <p className="text-sm text-muted-foreground">
-              Emergency financial decisions processed instantly
+              Full 9-agent financial analysis completes in under 2 minutes
             </p>
           </Card>
-          
+
           <Card className="p-6 text-center">
             <div className="text-3xl mb-3">🔒</div>
-            <h3 className="font-semibold mb-2">100% Offline</h3>
+            <h3 className="font-semibold mb-2">Row-Level Security</h3>
             <p className="text-sm text-muted-foreground">
-              Core functionality works without internet connection
+              Every user's data is isolated at the database level, enforced by Postgres
             </p>
           </Card>
-          
+
           <Card className="p-6 text-center">
             <div className="text-3xl mb-3">🧠</div>
-            <h3 className="font-semibold mb-2">Multi-Agent AI</h3>
+            <h3 className="font-semibold mb-2">9-Agent Pipeline</h3>
             <p className="text-sm text-muted-foreground">
-              4 specialized agents working in parallel
+              Specialized agents each own one part of your financial picture
             </p>
           </Card>
-          
+
           <Card className="p-6 text-center">
-            <div className="text-3xl mb-3">🔄</div>
-            <h3 className="font-semibold mb-2">Continuous Learning</h3>
+            <div className="text-3xl mb-3">🔢</div>
+            <h3 className="font-semibold mb-2">Deterministic Calculations</h3>
             <p className="text-sm text-muted-foreground">
-              System adapts to your unique financial patterns
+              Tax, risk, and budget numbers come from real formulas, not LLM guesses
             </p>
           </Card>
         </div>

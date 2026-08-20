@@ -105,7 +105,7 @@ const FeaturesPage = () => {
             <div className="text-2xl mb-3">🔒</div>
             <h3 className="font-semibold mb-2">Privacy First</h3>
             <p className="text-sm text-muted-foreground">
-              Offline-first design keeps your financial data secure and private
+              Row-level security keeps your financial data isolated and private
             </p>
           </Card>
         </div>
@@ -114,7 +114,7 @@ const FeaturesPage = () => {
         <div className="mt-16 text-center bg-gradient-to-r from-primary/10 to-primary/5 rounded-2xl p-12">
           <h2 className="text-3xl font-bold mb-4">Ready to Transform Your Finances?</h2>
           <p className="text-muted-foreground text-lg mb-8 max-w-2xl mx-auto">
-            Join thousands of gig workers who are already using KAMAI to optimize their financial journey.
+            Built for India's gig workers to take control of unpredictable income.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button

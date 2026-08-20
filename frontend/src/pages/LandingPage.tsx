@@ -28,34 +28,34 @@ const LandingPage = () => {
       desc: 'Gemini-powered financial analysis',
       color: 'from-slate-700 to-slate-800'
     },
-    { 
-      icon: TrendingUp, 
-      title: 'Income Forecasting', 
-      desc: '30-day probability predictions',
+    {
+      icon: TrendingUp,
+      title: 'Income Forecasting',
+      desc: 'Forecasts built from your real transaction volatility',
       color: 'from-slate-600 to-slate-700'
     },
-    { 
-      icon: Shield, 
-      title: 'Offline-First Privacy', 
-      desc: '100% data protection guaranteed',
+    {
+      icon: Shield,
+      title: 'Row-Level Security',
+      desc: 'Every user\'s data isolated at the database level',
       color: 'from-emerald-600 to-emerald-700'
     },
-    { 
-      icon: Zap, 
-      title: 'Real-time Automation', 
-      desc: '2-second emergency responses',
+    {
+      icon: Zap,
+      title: 'Fast Analysis',
+      desc: 'Full financial analysis in under 2 minutes',
       color: 'from-slate-500 to-slate-600'
     },
-    { 
-      icon: Database, 
-      title: 'Smart Sync', 
-      desc: 'Multi-platform data integration',
+    {
+      icon: Database,
+      title: 'Multi-Modal Input',
+      desc: 'Log transactions by text, photo, or voice',
       color: 'from-slate-700 to-slate-800'
     },
-    { 
-      icon: Globe, 
-      title: 'Government Schemes', 
-      desc: '200+ opportunities matched',
+    {
+      icon: Globe,
+      title: 'Risk & Savings',
+      desc: 'Real risk scoring and investment guidance',
       color: 'from-emerald-500 to-emerald-600'
     },
   ];
@@ -89,8 +89,8 @@ const LandingPage = () => {
 
   const stats = [
     { number: '230M+', label: 'Gig Workers Targeted' },
-    { number: '200+', label: 'Government Schemes' },
-    { number: '2-sec', label: 'Emergency Response' },
+    { number: '9', label: 'AI Agents' },
+    { number: '<2 min', label: 'Full Analysis' },
     { number: '100%', label: 'Privacy Protected' }
   ];
 
@@ -322,17 +322,17 @@ const LandingPage = () => {
                     AI-Powered Intelligence
                   </h3>
                   <p className="text-slate-600 mb-6">
-                    Our multi-agent system processes financial decisions in real-time while 
-                    maintaining complete privacy through offline-first design.
+                    Our multi-agent system computes real numbers from your real transaction
+                    history, with strict data isolation enforced by Postgres Row-Level Security.
                   </p>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="text-center p-4 bg-slate-50 rounded-lg">
-                      <div className="font-bold text-slate-900">4</div>
+                      <div className="font-bold text-slate-900">9</div>
                       <div className="text-xs text-slate-600">AI Agents</div>
                     </div>
                     <div className="text-center p-4 bg-slate-50 rounded-lg">
-                      <div className="font-bold text-slate-900">&lt;2s</div>
-                      <div className="text-xs text-slate-600">Response</div>
+                      <div className="font-bold text-slate-900">&lt;2min</div>
+                      <div className="text-xs text-slate-600">Full Analysis</div>
                     </div>
                   </div>
                 </div>
